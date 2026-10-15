@@ -133,9 +133,10 @@ pub struct ThreadDetail {
     pub remote_allowed: bool,
 }
 
-/// Which list of threads to show.
+/// Which list of threads to show. Variant names *and* their fields are
+/// camelCase on the wire ({"kind":"label","labelId":"INBOX"}).
 #[derive(Debug, Clone, Deserialize)]
-#[serde(tag = "kind", rename_all = "camelCase")]
+#[serde(tag = "kind", rename_all = "camelCase", rename_all_fields = "camelCase")]
 pub enum View {
     Label { label_id: String },
     Archive,
@@ -235,4 +236,46 @@ pub struct SyncState {
     pub last_sync: Option<i64>,
     pub error: Option<String>,
     pub error_code: Option<String>,
+}
+
+#[cfg(test)]
+mod wire_tests {
+    //! The exact JSON the interface sends (see src/lib/types.ts), so a naming
+    //! mismatch between TypeScript and Rust fails here instead of in the app.
+    use super::*;
+
+    #[test]
+    fn views_from_the_interface() {
+        let v: View = serde_json::from_str(r#"{"kind":"label","labelId":"INBOX"}"#).unwrap();
+        assert!(matches!(v, View::Label { label_id } if label_id == "INBOX"));
+        let v: View = serde_json::from_str(r#"{"kind":"search","query":"from:ann"}"#).unwrap();
+        assert!(matches!(v, View::Search { query } if query == "from:ann"));
+        assert!(matches!(serde_json::from_str::<View>(r#"{"kind":"archive"}"#).unwrap(), View::Archive));
+        assert!(matches!(serde_json::from_str::<View>(r#"{"kind":"snoozed"}"#).unwrap(), View::Snoozed));
+    }
+
+    #[test]
+    fn draft_from_the_interface() {
+        let d: DraftInput = serde_json::from_str(
+            r#"{"draftId":null,"threadId":"t1","inReplyTo":"<a@b>","references":null,
+                "to":[{"name":"Ann","email":"ann@x.com"}],"cc":[],"bcc":[],
+                "subject":"Hi","html":"<p>x</p>","text":"x",
+                "attachmentTokens":["tok"],
+                "forwarded":[{"messageId":"m","attachmentId":"a","filename":"f.pdf","mimeType":"application/pdf"}]}"#,
+        )
+        .unwrap();
+        assert_eq!(d.thread_id.as_deref(), Some("t1"));
+        assert_eq!(d.attachment_tokens, vec!["tok"]);
+        assert_eq!(d.forwarded[0].attachment_id, "a");
+    }
+
+    #[test]
+    fn settings_round_trip_uses_camel_case() {
+        let json = serde_json::to_value(crate::config::Settings::default()).unwrap();
+        for key in ["autoUpdate", "readerLayout", "blockRemoteImages", "undoSendSeconds", "customTitleBar"] {
+            assert!(json.get(key).is_some(), "missing {key}");
+        }
+        let back: crate::config::Settings = serde_json::from_value(json).unwrap();
+        assert!(back.auto_update);
+    }
 }
