@@ -16,16 +16,21 @@ say "Installing system packages (needs sudo)"
 sudo pacman -S --needed --noconfirm \
   base-devel git curl wget file openssl \
   webkit2gtk-4.1 gtk3 librsvg libappindicator-gtk3 xdotool \
-  nodejs npm \
+  nodejs npm github-cli \
   xdg-utils xdg-desktop-portal
 
-if ! command -v rustup >/dev/null; then
+if command -v rustup >/dev/null; then
+  say "Making sure a stable Rust toolchain is active"
+  rustup default stable >/dev/null
+  rustup update stable >/dev/null
+elif command -v cargo >/dev/null; then
+  # Rust installed from pacman ('rust' package) works fine; don't fight it.
+  say "Using the Rust already installed ($(cargo --version))"
+else
   say "Installing rustup (Rust toolchain manager)"
   sudo pacman -S --needed --noconfirm rustup
+  rustup default stable >/dev/null
 fi
-say "Making sure a stable Rust toolchain is active"
-rustup default stable >/dev/null
-rustup update stable >/dev/null
 
 say "Installing JavaScript packages"
 cd "$(dirname "$0")/.."
