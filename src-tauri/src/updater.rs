@@ -469,7 +469,7 @@ mod tests {
         h.set_entry_type(tar::EntryType::Regular);
         h.set_cksum();
         let mut raw = h.as_bytes().to_vec();
-        raw.extend_from_slice(&[b'x']);
+        raw.extend_from_slice(b"x");
         raw.resize(raw.len() + 511, 0);
         raw.extend_from_slice(&[0u8; 1024]);
         let mut gz = flate2::write::GzEncoder::new(Vec::new(), flate2::Compression::fast());
