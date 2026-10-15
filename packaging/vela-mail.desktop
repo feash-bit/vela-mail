@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name={{name}}
+GenericName=Email Client
+Comment={{comment}}
+Exec={{exec}} %u
+Icon={{icon}}
+Terminal=false
+Categories={{categories}}
+Keywords=email;mail;gmail;inbox;
+MimeType=x-scheme-handler/mailto;
+StartupNotify=true
+StartupWMClass=vela-mail

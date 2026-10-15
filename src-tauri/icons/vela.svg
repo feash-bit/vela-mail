@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1024 1024">
+  <defs>
+    <linearGradient id="bg" x1="160" y1="96" x2="880" y2="944" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#A597FF"/>
+      <stop offset="0.55" stop-color="#7C6CF6"/>
+      <stop offset="1" stop-color="#4E6BEA"/>
+    </linearGradient>
+    <linearGradient id="sheen" x1="512" y1="96" x2="512" y2="560" gradientUnits="userSpaceOnUse">
+      <stop offset="0" stop-color="#fff" stop-opacity=".28"/>
+      <stop offset="1" stop-color="#fff" stop-opacity="0"/>
+    </linearGradient>
+    <filter id="soft" x="-20%" y="-20%" width="140%" height="140%">
+      <feDropShadow dx="0" dy="10" stdDeviation="14" flood-color="#1b1446" flood-opacity=".35"/>
+    </filter>
+  </defs>
+  <rect x="96" y="96" width="832" height="832" rx="208" fill="url(#bg)"/>
+  <rect x="96" y="96" width="832" height="832" rx="208" fill="url(#sheen)"/>
+  <rect x="97.5" y="97.5" width="829" height="829" rx="206.5" fill="none" stroke="#fff" stroke-opacity=".18" stroke-width="3"/>
+  <g filter="url(#soft)">
+    <!-- Envelope flap that reads as a V -->
+    <path d="M262 424 L512 690 L762 424" fill="none" stroke="#fff" stroke-width="76" stroke-linecap="round" stroke-linejoin="round"/>
+    <!-- Four-point star -->
+    <path d="M512 222 C522 290 544 312 612 322 C544 332 522 354 512 422 C502 354 480 332 412 322 C480 312 502 290 512 222 Z" fill="#fff"/>
+  </g>
+</svg>

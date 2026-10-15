@@ -1,0 +1,140 @@
+/* Vela design tokens.
+   One family (Geist). Graphite surfaces in layers, a single accent that the
+   user can change, hairline borders instead of boxes. */
+
+:root {
+  --font-sans: "Geist Variable", ui-sans-serif, system-ui, -apple-system, "Segoe UI", sans-serif;
+  --font-mono: "Geist Mono Variable", ui-monospace, "SF Mono", monospace;
+
+  --accent: #8b7bff;
+  --accent-2: color-mix(in oklab, var(--accent) 62%, #4f7cff);
+  --accent-fg: #ffffff;
+  --accent-soft: color-mix(in oklab, var(--accent) 17%, transparent);
+  --accent-softer: color-mix(in oklab, var(--accent) 9%, transparent);
+  --accent-line: color-mix(in oklab, var(--accent) 45%, transparent);
+
+  /* Type scale (UI text is small and dense; reading text is larger) */
+  --fs-2xs: 10.5px;
+  --fs-xs: 11.5px;
+  --fs-sm: 12.5px;
+  --fs-base: 13px;
+  --fs-md: 14px;
+  --fs-lg: 16px;
+  --fs-xl: 19px;
+  --fs-2xl: 24px;
+  --fs-3xl: 30px;
+
+  /* Radius scale: each level of surface gets its own radius */
+  --r-xs: 4px;  /* chips, kbd */
+  --r-sm: 6px;  /* inputs, small buttons */
+  --r-md: 8px;  /* rows, buttons, menu items */
+  --r-lg: 12px; /* menus, cards, panels */
+  --r-xl: 16px; /* dialogs, composer */
+
+  --sp-1: 4px;
+  --sp-2: 8px;
+  --sp-3: 12px;
+  --sp-4: 16px;
+  --sp-5: 20px;
+  --sp-6: 24px;
+  --sp-8: 32px;
+
+  --titlebar-h: 44px;
+  --sidebar-w: 236px;
+  --sidebar-w-compact: 60px;
+
+  --row-h: 82px;
+  --row-pad-y: 12px;
+
+  --ease: cubic-bezier(0.2, 0.8, 0.2, 1);
+  --ease-out: cubic-bezier(0.16, 1, 0.3, 1);
+  --ease-spring: cubic-bezier(0.34, 1.4, 0.64, 1);
+  --dur-fast: 110ms;
+  --dur: 170ms;
+  --dur-slow: 260ms;
+}
+
+[data-density="compact"] {
+  --row-h: 52px;
+  --row-pad-y: 7px;
+}
+
+[data-theme="dark"] {
+  color-scheme: dark;
+  --bg: #16161a;
+  --bg-sidebar: #19191e;
+  --bg-elev: #1e1e24;
+  --bg-elev-2: #25252c;
+  --bg-input: rgba(255, 255, 255, 0.045);
+  --bg-hover: rgba(255, 255, 255, 0.042);
+  --bg-active: rgba(255, 255, 255, 0.075);
+  --bg-selected: color-mix(in oklab, var(--accent) 13%, #16161a);
+
+  --line: rgba(255, 255, 255, 0.065);
+  --line-strong: rgba(255, 255, 255, 0.11);
+  --line-focus: color-mix(in oklab, var(--accent) 70%, white);
+
+  --text: #ececf1;
+  --text-2: #b9b9c4;
+  --text-3: #8b8b98;
+  --text-4: #5f5f6b;
+  --accent-text: color-mix(in oklab, var(--accent) 72%, white);
+
+  --danger: #ff6b7d;
+  --danger-soft: rgba(255, 107, 125, 0.13);
+  --success: #4fd1a5;
+  --warning: #f5b85b;
+  --warning-soft: rgba(245, 184, 91, 0.12);
+  --star: #f6c453;
+  --important: #f5a35b;
+
+  --glass: rgba(32, 32, 39, 0.88);
+  --scrim: rgba(6, 6, 10, 0.52);
+  --shadow-sm: 0 1px 2px rgba(0, 0, 0, 0.35);
+  --shadow-pop: 0 0 0 1px rgba(255, 255, 255, 0.07), 0 16px 40px -10px rgba(0, 0, 0, 0.65), 0 3px 8px rgba(0, 0, 0, 0.3);
+  --shadow-sheet: 0 0 0 1px rgba(255, 255, 255, 0.08), 0 44px 90px -24px rgba(0, 0, 0, 0.75), 0 8px 24px rgba(0, 0, 0, 0.35);
+  --inner-hi: inset 0 1px 0 rgba(255, 255, 255, 0.05);
+
+  --paper: #fdfdfe;
+  --paper-text: #1f1f25;
+}
+
+[data-theme="light"] {
+  color-scheme: light;
+  --bg: #ffffff;
+  --bg-sidebar: #f6f6f8;
+  --bg-elev: #ffffff;
+  --bg-elev-2: #f3f3f6;
+  --bg-input: rgba(20, 20, 40, 0.04);
+  --bg-hover: rgba(20, 20, 40, 0.038);
+  --bg-active: rgba(20, 20, 40, 0.07);
+  --bg-selected: color-mix(in oklab, var(--accent) 10%, white);
+
+  --line: rgba(20, 20, 45, 0.075);
+  --line-strong: rgba(20, 20, 45, 0.13);
+  --line-focus: color-mix(in oklab, var(--accent) 80%, black);
+
+  --text: #17171c;
+  --text-2: #4a4a56;
+  --text-3: #6f6f7c;
+  --text-4: #a2a2ad;
+  --accent-text: color-mix(in oklab, var(--accent) 82%, black);
+
+  --danger: #e5384f;
+  --danger-soft: rgba(229, 56, 79, 0.09);
+  --success: #1f9c74;
+  --warning: #c27a12;
+  --warning-soft: rgba(194, 122, 18, 0.09);
+  --star: #e3a512;
+  --important: #e07b22;
+
+  --glass: rgba(255, 255, 255, 0.78);
+  --scrim: rgba(20, 20, 35, 0.22);
+  --shadow-sm: 0 1px 2px rgba(20, 20, 40, 0.08);
+  --shadow-pop: 0 0 0 1px rgba(20, 20, 45, 0.08), 0 16px 40px -12px rgba(20, 20, 45, 0.22), 0 3px 8px rgba(20, 20, 45, 0.06);
+  --shadow-sheet: 0 0 0 1px rgba(20, 20, 45, 0.08), 0 44px 90px -24px rgba(20, 20, 45, 0.35), 0 8px 24px rgba(20, 20, 45, 0.08);
+  --inner-hi: inset 0 1px 0 rgba(255, 255, 255, 0.7);
+
+  --paper: #ffffff;
+  --paper-text: #1f1f25;
+}

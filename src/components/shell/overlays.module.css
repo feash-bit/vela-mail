@@ -1,0 +1,217 @@
+/* ---------- Snooze ---------- */
+.snooze {
+  padding: 5px;
+}
+.snoozeItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 34px;
+  padding: 0 10px;
+  border-radius: var(--r-md);
+  text-align: left;
+  font-size: var(--fs-base);
+}
+.snoozeItem svg {
+  color: var(--text-3);
+}
+.snoozeItem[data-active="true"],
+.snoozeItem:hover {
+  background: var(--bg-active);
+}
+.snoozeItem span:first-of-type {
+  flex: 1;
+}
+.snoozeWhen {
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+  font-variant-numeric: tabular-nums;
+}
+.custom {
+  display: flex;
+  gap: 6px;
+  padding: 6px 4px 4px;
+  border-top: 1px solid var(--line);
+  margin-top: 4px;
+}
+.custom input {
+  color-scheme: inherit;
+}
+
+/* ---------- Label picker ---------- */
+.labelSearch {
+  padding: 4px 4px 6px;
+}
+.labelList {
+  max-height: 300px;
+  overflow-y: auto;
+}
+.labelRow {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  height: 32px;
+  padding: 0 10px;
+  border-radius: var(--r-md);
+  font-size: var(--fs-base);
+  text-align: left;
+}
+.labelRow:hover,
+.labelRow[data-active="true"] {
+  background: var(--bg-active);
+}
+.labelRow span:nth-child(3) {
+  flex: 1;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+.tick {
+  width: 16px;
+  height: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 4px;
+  box-shadow: inset 0 0 0 1.5px var(--text-4);
+  color: #fff;
+}
+.tick[data-state="on"],
+.tick[data-state="mixed"] {
+  background: var(--accent);
+  box-shadow: inset 0 0 0 1.5px var(--accent);
+}
+.swatch {
+  width: 9px;
+  height: 9px;
+  border-radius: 3px;
+  background: var(--text-4);
+}
+.labelEmpty {
+  padding: 12px 10px;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+
+/* ---------- Command palette ---------- */
+.palette {
+  width: 600px;
+  max-height: 460px;
+  align-self: start;
+  margin-top: 12vh;
+}
+.paletteInputRow {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 54px;
+  padding: 0 18px;
+  border-bottom: 1px solid var(--line);
+}
+.paletteInputRow svg {
+  color: var(--text-3);
+}
+.paletteInput {
+  outline: none !important;
+  flex: 1;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-lg);
+}
+.paletteInput::placeholder {
+  color: var(--text-4);
+}
+.paletteList {
+  overflow-y: auto;
+  padding: 6px;
+}
+.paletteGroup {
+  padding: 10px 12px 4px;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--text-3);
+}
+.paletteItem {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  height: 38px;
+  padding: 0 12px;
+  border-radius: var(--r-md);
+  text-align: left;
+  font-size: var(--fs-md);
+}
+.paletteItem svg {
+  color: var(--text-3);
+  flex: none;
+}
+.paletteItem[data-active="true"] {
+  background: var(--bg-active);
+}
+.paletteItem[data-active="true"] svg {
+  color: var(--accent-text);
+}
+.paletteItem span:nth-child(2) {
+  flex: 1;
+}
+.paletteEmpty {
+  padding: 28px;
+  text-align: center;
+  color: var(--text-3);
+}
+
+/* ---------- Shortcuts panel ---------- */
+.shortcuts {
+  width: 760px;
+}
+.shortcutsHead {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 18px 18px 6px 24px;
+}
+.shortcutsHead h2 {
+  margin: 0;
+  font-size: var(--fs-xl);
+  font-weight: 650;
+  letter-spacing: -0.02em;
+}
+.shortcutsBody {
+  overflow-y: auto;
+  padding: 6px 24px 24px;
+  columns: 2;
+  column-gap: 36px;
+}
+.group {
+  break-inside: avoid;
+  margin-bottom: 18px;
+}
+.group h3 {
+  margin: 10px 0 6px;
+  font-size: var(--fs-sm);
+  font-weight: 600;
+  color: var(--text-3);
+}
+.sc {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+  height: 30px;
+  font-size: var(--fs-base);
+  border-bottom: 1px solid var(--line);
+}
+.shortcutsFoot {
+  padding: 12px 24px 16px;
+  border-top: 1px solid var(--line);
+  font-size: var(--fs-sm);
+  color: var(--text-3);
+}
+.shortcutsFoot button {
+  color: var(--accent-text);
+  font-weight: 500;
+}

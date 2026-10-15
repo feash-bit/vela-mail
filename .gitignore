@@ -1,0 +1,14 @@
+node_modules/
+dist/
+src-tauri/target/
+src-tauri/gen/
+*.log
+.env
+.env.*
+# Never commit Google OAuth client files or tokens
+client_secret*.json
+google-client.json
+*.AppImage
+packaging/arch/*.pkg.tar.*
+packaging/arch/src/
+packaging/arch/pkg/

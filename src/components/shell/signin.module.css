@@ -1,0 +1,39 @@
+.wait {
+  width: 420px;
+  padding: 28px 28px 20px;
+  align-items: center;
+  text-align: center;
+}
+.waitIcon {
+  width: 52px;
+  height: 52px;
+  margin-bottom: 16px;
+  display: grid;
+  place-items: center;
+  border-radius: 16px;
+  background: var(--accent-softer);
+  box-shadow: inset 0 0 0 1px var(--accent-line);
+}
+.waitIcon svg {
+  color: var(--accent-text);
+}
+.waitTitle {
+  margin: 0 0 8px;
+  font-size: var(--fs-lg);
+  font-weight: 600;
+  letter-spacing: -0.01em;
+}
+.waitBody {
+  margin: 0 0 14px;
+  color: var(--text-2);
+  font-size: var(--fs-md);
+  line-height: 1.55;
+}
+.waitNote {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  margin: 0 0 18px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+}

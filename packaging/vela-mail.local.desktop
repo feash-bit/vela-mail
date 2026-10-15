@@ -1,0 +1,13 @@
+[Desktop Entry]
+Type=Application
+Name=Vela
+GenericName=Email Client
+Comment=A fast, keyboard-first Gmail client
+Exec=vela-mail %u
+Icon=vela-mail
+Terminal=false
+Categories=Network;Email;Office;
+Keywords=email;mail;gmail;inbox;
+MimeType=x-scheme-handler/mailto;
+StartupNotify=true
+StartupWMClass=vela-mail

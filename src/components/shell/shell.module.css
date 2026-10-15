@@ -1,0 +1,333 @@
+.app {
+  position: relative;
+  display: flex;
+  height: 100vh;
+  background: var(--bg-sidebar);
+  overflow: hidden;
+}
+
+.main {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+}
+
+/* The content panel floats on the window chrome, Arc-style. */
+.panel {
+  position: relative;
+  flex: 1;
+  min-height: 0;
+  margin: 0 8px 8px 0;
+  display: flex;
+  border-radius: var(--r-lg);
+  background: var(--bg);
+  box-shadow:
+    0 0 0 1px var(--line),
+    0 1px 2px rgba(0, 0, 0, 0.12),
+    0 10px 30px -18px rgba(0, 0, 0, 0.5);
+  overflow: hidden;
+}
+:global([data-chrome="native"]) .panel {
+  margin: 0 6px 6px 0;
+}
+
+/* ---------- Title bar ---------- */
+.titlebar {
+  height: var(--titlebar-h);
+  flex: none;
+  display: grid;
+  grid-template-columns: 1fr minmax(260px, 600px) 1fr;
+  align-items: center;
+  gap: 12px;
+  padding: 0 8px 0 4px;
+}
+.titleLeft {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  min-width: 0;
+  color: var(--text-3);
+  font-size: var(--fs-sm);
+}
+.titleRight {
+  display: flex;
+  align-items: center;
+  justify-content: flex-end;
+  gap: 4px;
+}
+.syncPill {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 12px;
+  font-size: var(--fs-xs);
+  font-weight: 500;
+  color: var(--text-3);
+  white-space: nowrap;
+}
+.syncPill[data-tone="warn"] {
+  color: var(--warning);
+  background: var(--warning-soft);
+}
+.syncPill[data-tone="error"] {
+  color: var(--danger);
+  background: var(--danger-soft);
+}
+.syncDot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+}
+
+.winControls {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  margin-left: 6px;
+}
+.winBtn {
+  width: 30px;
+  height: 30px;
+  display: grid;
+  place-items: center;
+  border-radius: 50%;
+  color: var(--text-3);
+  transition:
+    background var(--dur-fast) var(--ease),
+    color var(--dur-fast) var(--ease);
+}
+.winBtn:hover {
+  background: var(--bg-active);
+  color: var(--text);
+}
+.winBtn[data-kind="close"]:hover {
+  background: #e5484d;
+  color: #fff;
+}
+
+/* ---------- Search ---------- */
+.search {
+  position: relative;
+  width: 100%;
+}
+.searchField {
+  display: flex;
+  align-items: center;
+  gap: 9px;
+  height: 32px;
+  padding: 0 6px 0 11px;
+  border-radius: var(--r-md);
+  background: var(--bg-input);
+  box-shadow: inset 0 0 0 1px var(--line);
+  color: var(--text-3);
+  transition:
+    background var(--dur) var(--ease),
+    box-shadow var(--dur) var(--ease);
+}
+.searchField:hover {
+  background: var(--bg-hover);
+}
+.searchField[data-focused="true"] {
+  background: var(--bg);
+  box-shadow:
+    inset 0 0 0 1px var(--accent-line),
+    0 0 0 3px var(--accent-softer);
+}
+.searchInput {
+  outline: none !important;
+  flex: 1;
+  min-width: 0;
+  height: 100%;
+  border: 0;
+  background: transparent;
+  color: var(--text);
+  font-size: var(--fs-base);
+}
+.searchInput::placeholder {
+  color: var(--text-4);
+}
+.suggest {
+  padding: 6px;
+}
+.suggestItem {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 32px;
+  padding: 0 10px;
+  border-radius: var(--r-md);
+  text-align: left;
+  color: var(--text);
+  font-size: var(--fs-base);
+}
+.suggestItem svg {
+  color: var(--text-3);
+  flex: none;
+}
+.suggestItem[data-active="true"] {
+  background: var(--bg-active);
+}
+.suggestMeta {
+  margin-left: auto;
+  color: var(--text-3);
+  font-size: var(--fs-xs);
+}
+.suggestHead {
+  padding: 8px 10px 4px;
+  font-size: var(--fs-xs);
+  color: var(--text-3);
+  font-weight: 500;
+}
+.operators {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  padding: 4px 10px 8px;
+}
+.operator {
+  height: 24px;
+  padding: 0 9px;
+  border-radius: 12px;
+  font-size: var(--fs-xs);
+  font-family: var(--font-mono);
+  color: var(--text-2);
+  background: var(--bg-hover);
+  box-shadow: inset 0 0 0 1px var(--line);
+}
+.operator:hover {
+  color: var(--text);
+  background: var(--bg-active);
+}
+
+/* ---------- Resize edges for the frameless window ---------- */
+.edge {
+  position: fixed;
+  z-index: 2000;
+}
+.edgeN {
+  top: 0;
+  left: 8px;
+  right: 8px;
+  height: 4px;
+  cursor: n-resize;
+}
+.edgeS {
+  bottom: 0;
+  left: 8px;
+  right: 8px;
+  height: 4px;
+  cursor: s-resize;
+}
+.edgeE {
+  right: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  cursor: e-resize;
+}
+.edgeW {
+  left: 0;
+  top: 8px;
+  bottom: 8px;
+  width: 4px;
+  cursor: w-resize;
+}
+.edgeNE {
+  top: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  cursor: ne-resize;
+}
+.edgeNW {
+  top: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  cursor: nw-resize;
+}
+.edgeSE {
+  bottom: 0;
+  right: 0;
+  width: 10px;
+  height: 10px;
+  cursor: se-resize;
+}
+.edgeSW {
+  bottom: 0;
+  left: 0;
+  width: 10px;
+  height: 10px;
+  cursor: sw-resize;
+}
+
+.dropOverlay {
+  position: fixed;
+  inset: 10px;
+  z-index: 1500;
+  border-radius: var(--r-xl);
+  border: 2px dashed var(--accent-line);
+  background: color-mix(in oklab, var(--accent) 8%, transparent);
+  backdrop-filter: blur(3px);
+  display: grid;
+  place-items: center;
+  pointer-events: none;
+  animation: vela-fade-in var(--dur) var(--ease);
+}
+.dropCard {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 14px 20px;
+  border-radius: var(--r-lg);
+  background: var(--bg-elev);
+  box-shadow: var(--shadow-pop);
+  font-weight: 500;
+}
+.dropCard svg {
+  color: var(--accent-text);
+}
+
+.offlineBanner {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 8px 14px;
+  font-size: var(--fs-sm);
+  color: var(--warning);
+  background: var(--warning-soft);
+  border-bottom: 1px solid var(--line);
+}
+.reauthBanner {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 8px 10px 8px 14px;
+  font-size: var(--fs-sm);
+  color: var(--text);
+  background: color-mix(in oklab, var(--accent) 10%, transparent);
+  border-bottom: 1px solid var(--line);
+}
+.reauthBanner svg {
+  color: var(--accent-text);
+}
+.reauthBanner span {
+  flex: 1;
+}
+
+.splash {
+  height: 100vh;
+  display: grid;
+  place-items: center;
+  background: var(--bg);
+}
+.splashMark {
+  width: 56px;
+  height: 56px;
+  animation: vela-fade-in 600ms var(--ease);
+}

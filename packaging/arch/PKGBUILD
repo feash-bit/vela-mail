@@ -1,0 +1,50 @@
+# Maintainer: you
+# Native Arch / CachyOS package built from this source checkout.
+#
+#   cd packaging/arch && makepkg -si
+#
+# To update later: git pull at the project root, then run makepkg -si again.
+
+pkgname=vela-mail
+pkgver=0.1.0
+pkgrel=1
+pkgdesc="Vela — a fast, keyboard-first Gmail desktop client"
+arch=('x86_64' 'aarch64')
+url="https://github.com/your-name/vela-mail"
+license=('MIT')
+depends=('webkit2gtk-4.1' 'gtk3' 'libsoup3' 'glib2' 'cairo' 'pango' 'gdk-pixbuf2' 'openssl' 'xdg-utils' 'hicolor-icon-theme')
+optdepends=(
+  'kwallet: store sign-in tokens on KDE Plasma (Secret Service)'
+  'gnome-keyring: store sign-in tokens on other desktops'
+  'xdg-desktop-portal-kde: native file pickers on KDE Plasma'
+)
+makedepends=('rust' 'cargo' 'nodejs' 'npm' 'librsvg')
+options=('!lto' '!debug')
+source=()
+sha256sums=()
+
+_root() { realpath "$startdir/../.."; }
+
+build() {
+  cd "$(_root)"
+  export CARGO_TARGET_DIR="$srcdir/target"
+  npm ci --no-audit --no-fund
+  npx tauri build --no-bundle
+}
+
+check() {
+  cd "$(_root)/src-tauri"
+  CARGO_TARGET_DIR="$srcdir/target" cargo test --release --lib
+}
+
+package() {
+  local root; root="$(_root)"
+  install -Dm755 "$srcdir/target/release/vela-mail" "$pkgdir/usr/bin/vela-mail"
+  install -Dm644 "$root/packaging/vela-mail.local.desktop" "$pkgdir/usr/share/applications/vela-mail.desktop"
+  for size in 32 64 128 256 512; do
+    install -dm755 "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps"
+    rsvg-convert -w "$size" -h "$size" "$root/src-tauri/icons/vela.svg" -o "$pkgdir/usr/share/icons/hicolor/${size}x${size}/apps/vela-mail.png"
+  done
+  install -Dm644 "$root/src-tauri/icons/vela.svg" "$pkgdir/usr/share/icons/hicolor/scalable/apps/vela-mail.svg"
+  install -Dm644 "$root/LICENSE" "$pkgdir/usr/share/licenses/$pkgname/LICENSE"
+}
