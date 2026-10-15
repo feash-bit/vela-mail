@@ -104,7 +104,11 @@ pub async fn add_account(app: AppHandle, state: S<'_>, login_hint: Option<String
     let tokens = oauth::sign_in(&client, &state.auth.http, state.sign_in_cancel.clone(), login_hint.as_deref(), move |url| {
         opener_app.opener().open_url(url, None::<&str>).map_err(|_| AppError::Invalid("Couldn't open your web browser.".into()))
     })
-    .await?;
+    .await
+    .map_err(|e| match e {
+        AppError::Offline => AppError::Invalid("Couldn't reach Google to finish signing in. Check your internet connection and try again.".into()),
+        other => other,
+    })?;
     crate::notify::focus_main(&app);
 
     // Find out which account just signed in.

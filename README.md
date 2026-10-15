@@ -7,7 +7,7 @@ and KDE Plasma (Wayland or X11).
 - **Keyboard first**: triage with `j` `k` `e` `#` `r`, everything else with `Ctrl+K`.
 - **Safe by default**: emails can't run code, tracking images are blocked, sign-in
   tokens live only in your system keyring.
-- **Light on resources**: about 10 MB on disk; uses the system WebKitGTK engine.
+- **Light on resources**: a ~16 MB binary; uses the system WebKitGTK engine.
 
 ---
 
@@ -98,7 +98,7 @@ docs/                     Google setup guide
 - **Email needs a real browser engine.** HTML email only renders properly in a
   web engine. Tauri uses the system's WebKitGTK; Avalonia (the strongest C#
   option on Linux) has no free, maintained embedded web view.
-- **Small and native.** ~10 MB instead of Electron's ~150 MB, native window,
+- **Small and native.** ~16 MB instead of Electron's ~150 MB, native window,
   native file pickers through the desktop portal, native notifications.
 - **Security split.** All Google traffic and tokens stay in the Rust backend; the
   interface can only call a fixed list of commands (see `capabilities/default.json`).

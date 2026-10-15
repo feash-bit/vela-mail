@@ -133,7 +133,6 @@ mod tests {
     fn rejects_bad_addresses_and_oversize() {
         let from = addr(None, "me@example.com");
         let base = |to: Vec<Address>, att: Vec<OutAttachment>| {
-            let to = to;
             build(Outgoing { from: &from, to: &to, cc: &[], bcc: &[], subject: "", html: "", text: "", in_reply_to: None, references: None, attachments: att })
         };
         assert!(base(vec![addr(None, "not an email")], vec![]).is_err());

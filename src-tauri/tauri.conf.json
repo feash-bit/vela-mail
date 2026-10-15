@@ -51,7 +51,7 @@
       "appimage",
       "deb"
     ],
-    "category": "Office",
+    "category": "Productivity",
     "shortDescription": "A fast, keyboard-first Gmail client",
     "longDescription": "Vela is a modern Gmail desktop client with a keyboard-first workflow, secure sign-in and safe email rendering.",
     "icon": [
