@@ -13,6 +13,8 @@ import {
   RotateCcw,
   Rows2,
   Shield,
+  Sparkles,
+  RefreshCw,
   Sun,
   Users,
   X,
@@ -24,6 +26,8 @@ import { api, inTauri } from "../../lib/ipc";
 import { alternatives, conflicts, DEFAULT_SHORTCUTS, eventToKey, type ShortcutAction } from "../../lib/shortcuts";
 import { FOLDERS } from "../../lib/views";
 import { useApp, type SettingsSection } from "../../state/app";
+import { useUpdate } from "../../state/update";
+import { relative } from "../../lib/format";
 import { useSignIn } from "../shell/SignIn";
 import { ConfirmDialog, Dialog } from "../ui/Dialog";
 import { Avatar, Button, IconButton, Kbd, Segmented, Switch } from "../ui/primitives";
@@ -47,6 +51,7 @@ const SECTIONS: { id: SettingsSection; label: string; icon: ReactNode }[] = [
   { id: "privacy", label: "Privacy & security", icon: <Shield size={16} /> },
   { id: "shortcuts", label: "Shortcuts", icon: <Keyboard size={16} /> },
   { id: "startup", label: "Startup", icon: <Power size={16} /> },
+  { id: "updates", label: "Updates", icon: <Sparkles size={16} /> },
 ];
 
 function Row({ label, help, children }: { label: string; help?: ReactNode; children: ReactNode }) {
@@ -483,6 +488,83 @@ function Startup() {
   );
 }
 
+function Updates() {
+  const st = useApp((a) => a.settings!);
+  const up = useApp((a) => a.updateSettings);
+  const u = useUpdate((x) => x.status);
+  if (!u) return null;
+  const busy = u.state === "checking" || u.state === "downloading";
+  const line = {
+    notConfigured: "Updates aren't set up for this copy of Vela yet.",
+    idle: "Vela checks for updates shortly after it starts, then every 6 hours.",
+    checking: "Checking for updates…",
+    upToDate: "You have the latest version.",
+    available: `Vela ${u.version} is available.`,
+    downloading: `Downloading Vela ${u.version}… ${Math.round((u.progress ?? 0) * 100)}%`,
+    ready: `Vela ${u.version} is downloaded and verified. Restart to install it.`,
+    error: u.error ?? "The last check didn't work.",
+  }[u.state];
+
+  return (
+    <>
+      <Group title="Vela">
+        <div className={s.row}>
+          <span className={s.rowText}>
+            <span className={s.rowLabel}>Version {u.current}</span>
+            <span className={s.rowHelp} aria-live="polite">
+              {line}
+              {u.checkedAt && u.state !== "checking" ? ` Last checked ${relative(u.checkedAt)}.` : ""}
+            </span>
+          </span>
+          {u.state === "ready" ? (
+            <Button size="sm" variant="primary" icon={<RefreshCw size={14} />} onClick={() => useUpdate.getState().restart()}>
+              Restart to install
+            </Button>
+          ) : u.state === "available" && u.canInstall ? (
+            <Button size="sm" variant="primary" onClick={() => useUpdate.getState().download()}>
+              Download update
+            </Button>
+          ) : u.state !== "notConfigured" ? (
+            <Button size="sm" loading={busy} onClick={() => useUpdate.getState().check()}>
+              Check now
+            </Button>
+          ) : null}
+        </div>
+        {u.notes && (u.state === "available" || u.state === "ready" || u.state === "downloading") && (
+          <div className={s.row}>
+            <span className={s.rowText}>
+              <span className={s.rowLabel}>What's new in {u.version}</span>
+              <span className={s.rowHelp} style={{ whiteSpace: "pre-wrap" }} data-selectable>
+                {u.notes}
+              </span>
+            </span>
+          </div>
+        )}
+      </Group>
+      {u.state !== "notConfigured" && (
+        <Group title="Automatic updates">
+          <Row
+            label="Download updates automatically"
+            help={u.canInstall ? "New versions download in the background. Nothing changes until you choose Restart." : "Vela will tell you when a new version is out."}
+          >
+            <Switch label="Download updates automatically" checked={st.autoUpdate} onChange={(autoUpdate) => up({ autoUpdate })} />
+          </Row>
+        </Group>
+      )}
+      <Group title="How updates are protected">
+        <ul className={s.secList}>
+          <li>Every release is signed with a private key only you hold. Vela checks that signature against the public key built into it, and refuses anything that doesn't match.</li>
+          <li>Vela only installs versions newer than the one you have, and checks the version inside the download, so an old release can't be passed off as new.</li>
+          <li>Downloads come only over HTTPS from the address built into Vela.</li>
+          {u.installKind === "system" && <li>This copy was installed with pacman, so Vela can tell you about updates but you install them with makepkg (README → Updating).</li>}
+          {u.installKind === "dev" && <li>This is a development build, so it won't replace itself.</li>}
+          {u.state === "notConfigured" && <li>To turn updates on, run scripts/setup-updates.sh once, then reinstall (see docs/UPDATES.md).</li>}
+        </ul>
+      </Group>
+    </>
+  );
+}
+
 export function SettingsDialog() {
   const section = useApp((a) => a.settingsSection);
   const version = useApp((a) => a.info?.version);
@@ -496,6 +578,7 @@ export function SettingsDialog() {
     privacy: <Privacy />,
     shortcuts: <Shortcuts />,
     startup: <Startup />,
+    updates: <Updates />,
   }[current.id];
   return (
     <Dialog onClose={() => openDialog(null)} label="Settings" className={s.dialog}>

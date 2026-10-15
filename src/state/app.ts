@@ -11,7 +11,7 @@ export interface Toast {
 }
 
 export type Dialog = null | "settings" | "shortcuts" | "palette";
-export type SettingsSection = "appearance" | "accounts" | "mail" | "notifications" | "privacy" | "shortcuts" | "startup";
+export type SettingsSection = "appearance" | "accounts" | "mail" | "notifications" | "privacy" | "shortcuts" | "startup" | "updates";
 
 interface AppStore {
   info: AppInfo | null;

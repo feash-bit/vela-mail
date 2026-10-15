@@ -1,0 +1,93 @@
+# Builds, signs and publishes a Vela release when a version tag (v1.2.3) is pushed.
+# scripts/release.sh creates and pushes the tag for you.
+#
+# Required repository secrets (scripts/setup-updates.sh explains):
+#   TAURI_SIGNING_PRIVATE_KEY           contents of ~/.tauri/vela-mail.key
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  its password
+name: Release
+
+on:
+  push:
+    tags: ["v*.*.*"]
+
+permissions:
+  contents: write
+
+concurrency:
+  group: release
+  cancel-in-progress: false
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    # Build on Arch Linux so the binary links against the same libraries CachyOS uses.
+    container:
+      image: archlinux:base-devel
+    timeout-minutes: 60
+    steps:
+      - name: Install build dependencies
+        run: |
+          pacman -Syu --noconfirm --needed git rustup nodejs npm webkit2gtk-4.1 gtk3 librsvg \
+            libappindicator-gtk3 openssl dbus github-cli python
+          rustup default stable
+
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Read version and release notes from the tag
+        id: meta
+        shell: bash
+        run: |
+          git config --global --add safe.directory "$GITHUB_WORKSPACE"
+          TAG="${GITHUB_REF_NAME}"
+          # actions/checkout can flatten annotated tags; fetch the real one for its message.
+          git fetch --force origin "refs/tags/${TAG}:refs/tags/${TAG}"
+          VERSION="${TAG#v}"
+          [ "$(node -p "require('./package.json').version")" = "$VERSION" ] || { echo "package.json version doesn't match $TAG"; exit 1; }
+          git tag -l --format='%(contents)' "$TAG" | sed '/-----BEGIN PGP/,$d' > notes.txt
+          [ -s notes.txt ] || echo "Improvements and fixes." > notes.txt
+          echo "version=$VERSION" >> "$GITHUB_OUTPUT"
+
+      - name: Check updater configuration
+        shell: bash
+        env:
+          HAS_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY != '' }}
+        run: |
+          grep -q '"pubkey": "[^"]' src-tauri/updater.json || { echo "src-tauri/updater.json has no public key. Run scripts/setup-updates.sh."; exit 1; }
+          [ "$HAS_KEY" = "true" ] || { echo "Missing repository secret TAURI_SIGNING_PRIVATE_KEY"; exit 1; }
+
+      - name: Install JavaScript packages
+        run: npm ci --no-audit --no-fund
+
+      - name: Run checks
+        run: npm run check
+
+      - name: Build release binary
+        run: npx tauri build --no-bundle
+
+      - name: Package and sign
+        shell: bash
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+        run: |
+          ./scripts/package-release.sh "${{ steps.meta.outputs.version }}" \
+            "https://github.com/${GITHUB_REPOSITORY}/releases/download/${GITHUB_REF_NAME}" notes.txt
+
+      - name: Verify the signature with the public key Vela ships with
+        shell: bash
+        run: |
+          src-tauri/target/release/vela-mail --verify-release \
+            release/latest.json release/vela-mail-${{ steps.meta.outputs.version }}-linux-x86_64.tar.gz
+
+      - name: Publish GitHub release
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "${GITHUB_REF_NAME}" \
+            --repo "${GITHUB_REPOSITORY}" \
+            --title "Vela ${{ steps.meta.outputs.version }}" \
+            --notes-file notes.txt \
+            release/vela-mail-*.tar.gz release/vela-mail-*.tar.gz.sig release/latest.json

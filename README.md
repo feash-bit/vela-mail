@@ -35,12 +35,18 @@ To make Vela open `mailto:` links: `./scripts/install.sh --default`
 
 ### Updating
 
+**Automatic (recommended):** after a one-time setup, Vela checks for new versions,
+downloads and verifies them in the background, and shows **Update ready ·
+Restart** in the title bar. See **[docs/UPDATES.md](docs/UPDATES.md)**.
+
+Publishing a new version is one command:
+
 ```bash
-git pull
-./scripts/install.sh            # or: cd packaging/arch && makepkg -si
+./scripts/release.sh 0.2.0 "What changed"
 ```
 
-Your settings, accounts and keyring entries are kept.
+**Manual:** `git pull && ./scripts/install.sh` (or `makepkg -si` for the pacman package).
+Your settings, accounts and keyring entries are kept either way.
 
 ### Uninstalling
 
@@ -56,6 +62,7 @@ Your settings, accounts and keyring entries are kept.
 npm run dev          # the real app with hot reload (needs your Google setup)
 npm run dev:demo     # the real app with built-in sample mail — no Google account needed
 npm run check        # typecheck + frontend tests + clippy + Rust tests
+vela-mail --version  # print the installed version
 ```
 
 `dev:demo` exists so the interface can be worked on without signing in. The

@@ -353,6 +353,20 @@ let settings: Settings = {
   reducedMotion: "system",
   shortcuts: {},
   recentSearches: ["from:maya", "has:attachment invoice"],
+  autoUpdate: true,
+};
+
+const demoUpdate = {
+  state: "ready",
+  current: "0.1.0",
+  version: "0.2.0",
+  notes: "• Faster search across large mailboxes\n• New snooze presets\n• Fixes for compact rows",
+  pubDate: "2026-10-20T00:00:00Z",
+  progress: null,
+  installKind: "user",
+  canInstall: true,
+  error: null,
+  checkedAt: Date.now() - 4 * 60_000,
 };
 
 const account: Account = { id: ME.email, email: ME.email, displayName: ME.name, status: "ok" };
@@ -471,6 +485,12 @@ export async function handle(cmd: string, args: Record<string, unknown>): Promis
       return [{ token: `tok${Date.now()}`, filename: "site-plan-v2.pdf", size: 842_000, mimeType: "application/pdf" }];
     case "attachment_preview":
       return tinyImage((String(a.attachmentId).length * 47) % 360);
+    case "update_status":
+    case "check_for_update":
+    case "download_update":
+      return demoUpdate;
+    case "install_update":
+      throw { code: "invalid", message: "Demo mode doesn't install updates." };
     case "open_attachment":
     case "open_external":
       return null;

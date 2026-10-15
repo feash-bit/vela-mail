@@ -15,6 +15,7 @@ import type {
   DraftContent,
   DraftInput,
   Identity,
+  UpdateStatus,
   Label,
   LocalFile,
   MailChanged,
@@ -94,6 +95,10 @@ export const api = {
     call<boolean>("save_attachment", { accountId, messageId, attachmentId, filename }),
   attachmentPreview: (accountId: string, messageId: string, attachmentId: string, mimeType: string) =>
     call<string>("attachment_preview", { accountId, messageId, attachmentId, mimeType }),
+  updateStatus: () => call<UpdateStatus>("update_status"),
+  checkForUpdate: () => call<UpdateStatus>("check_for_update"),
+  downloadUpdate: () => call<UpdateStatus>("download_update"),
+  installUpdate: () => call<void>("install_update"),
   openAttachment: (accountId: string, messageId: string, attachmentId: string, filename: string) =>
     call<void>("open_attachment", { accountId, messageId, attachmentId, filename }),
 };
@@ -107,6 +112,7 @@ export interface Events {
   "app://mailto": string;
   "files://hover": boolean;
   "files://dropped": { files: LocalFile[]; errors: string[] };
+  "update://status": UpdateStatus;
 }
 
 export function on<K extends keyof Events>(event: K, fn: (payload: Events[K]) => void): Promise<UnlistenFn> {

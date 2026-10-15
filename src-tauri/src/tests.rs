@@ -329,3 +329,120 @@ async fn unreachable_server_reports_offline() {
     let g = Gmail::with_base(ME, auth, "http://127.0.0.1:9");
     assert!(matches!(g.profile().await, Err(AppError::Offline)));
 }
+
+// ---------------------------------------------------------------------------
+// Self-updater against a fake release server, with archives signed by the
+// real `tauri signer` (throwaway test key in test-fixtures/updates).
+// ---------------------------------------------------------------------------
+
+mod updates {
+    use crate::updater::{download_and_stage, fetch_manifest, http_client, UpdaterConfig};
+    use serde_json::json;
+    use wiremock::matchers::{method, path};
+    use wiremock::{Mock, MockServer, ResponseTemplate};
+
+    const FX: &str = concat!(env!("CARGO_MANIFEST_DIR"), "/test-fixtures/updates");
+    fn fx(name: &str) -> Vec<u8> {
+        std::fs::read(format!("{FX}/{name}")).unwrap()
+    }
+    fn fx_text(name: &str) -> String {
+        String::from_utf8(fx(name)).unwrap().trim().to_string()
+    }
+
+    async fn serve(server: &MockServer, version: &str, archive: &str, signature: String) -> UpdaterConfig {
+        Mock::given(method("GET"))
+            .and(path("/latest.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "version": version,
+                "notes": "Faster search and a new snooze menu.",
+                "pub_date": "2026-10-20T00:00:00Z",
+                "platforms": { "linux-x86_64": { "url": format!("{}/dl/{archive}", server.uri()), "signature": signature } }
+            })))
+            .mount(server)
+            .await;
+        Mock::given(method("GET"))
+            .and(path(format!("/dl/{archive}")))
+            .respond_with(ResponseTemplate::new(200).set_body_bytes(fx(archive)))
+            .mount(server)
+            .await;
+        UpdaterConfig { endpoint: format!("{}/latest.json", server.uri()), pubkey: fx_text("test.key.pub") }
+    }
+
+    #[tokio::test]
+    async fn installs_a_properly_signed_newer_release() {
+        let server = MockServer::start().await;
+        let cfg = serve(&server, "0.2.0", "vela-mail-0.2.0-linux-x86_64.tar.gz", fx_text("vela-mail-0.2.0-linux-x86_64.tar.gz.sig")).await;
+        let http = http_client();
+        let m = fetch_manifest(&http, &cfg).await.unwrap();
+        assert_eq!(m.notes.as_deref(), Some("Faster search and a new snooze menu."));
+        let dir = tempfile::tempdir().unwrap();
+        let mut seen = 0.0;
+        let staged = download_and_stage(&http, &cfg, &m, "0.1.0", dir.path(), |p| seen = p).await.unwrap();
+        assert_eq!(std::fs::read_to_string(staged.join("VERSION")).unwrap().trim(), "0.2.0");
+        assert!(std::fs::read_to_string(staged.join("vela-mail")).unwrap().contains("vela 0.2.0"));
+        assert_eq!(seen, 1.0);
+    }
+
+    #[tokio::test]
+    async fn rejects_a_signature_from_another_key() {
+        let server = MockServer::start().await;
+        let cfg = serve(&server, "0.2.0", "vela-mail-0.2.0-linux-x86_64.tar.gz", fx_text("attacker.sig")).await;
+        let http = http_client();
+        let m = fetch_manifest(&http, &cfg).await.unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let err = download_and_stage(&http, &cfg, &m, "0.1.0", dir.path(), |_| {}).await.unwrap_err();
+        assert!(err.to_string().contains("signature"), "{err}");
+        assert_eq!(std::fs::read_dir(dir.path()).map(|d| d.count()).unwrap_or(0), 0, "nothing unpacked");
+    }
+
+    #[tokio::test]
+    async fn rejects_a_tampered_archive() {
+        let server = MockServer::start().await;
+        let name = "vela-mail-0.2.0-linux-x86_64.tar.gz";
+        Mock::given(method("GET"))
+            .and(path("/latest.json"))
+            .respond_with(ResponseTemplate::new(200).set_body_json(json!({
+                "version": "0.2.0",
+                "platforms": { "linux-x86_64": { "url": format!("{}/dl/{name}", server.uri()), "signature": fx_text(&format!("{name}.sig")) } }
+            })))
+            .mount(&server)
+            .await;
+        let mut bytes = fx(name);
+        let mid = bytes.len() / 2;
+        bytes[mid] ^= 0xff;
+        Mock::given(method("GET")).and(path(format!("/dl/{name}"))).respond_with(ResponseTemplate::new(200).set_body_bytes(bytes)).mount(&server).await;
+        let cfg = UpdaterConfig { endpoint: format!("{}/latest.json", server.uri()), pubkey: fx_text("test.key.pub") };
+        let http = http_client();
+        let m = fetch_manifest(&http, &cfg).await.unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        assert!(download_and_stage(&http, &cfg, &m, "0.1.0", dir.path(), |_| {}).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn rejects_an_old_release_replayed_as_new() {
+        // A genuinely signed 0.1.5 build, advertised as 0.2.0.
+        let server = MockServer::start().await;
+        let cfg = serve(&server, "0.2.0", "vela-mail-0.1.5-linux-x86_64.tar.gz", fx_text("vela-mail-0.1.5-linux-x86_64.tar.gz.sig")).await;
+        let http = http_client();
+        let m = fetch_manifest(&http, &cfg).await.unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        let err = download_and_stage(&http, &cfg, &m, "0.1.0", dir.path(), |_| {}).await.unwrap_err();
+        assert!(err.to_string().contains("signed as"), "{err}");
+    }
+
+    #[tokio::test]
+    async fn ignores_releases_that_are_not_newer() {
+        let server = MockServer::start().await;
+        let cfg = serve(&server, "0.2.0", "vela-mail-0.2.0-linux-x86_64.tar.gz", fx_text("vela-mail-0.2.0-linux-x86_64.tar.gz.sig")).await;
+        let http = http_client();
+        let m = fetch_manifest(&http, &cfg).await.unwrap();
+        let dir = tempfile::tempdir().unwrap();
+        assert!(download_and_stage(&http, &cfg, &m, "0.2.0", dir.path(), |_| {}).await.is_err());
+    }
+
+    #[tokio::test]
+    async fn refuses_plain_http_to_other_hosts() {
+        let cfg = UpdaterConfig { endpoint: "http://example.com/latest.json".into(), pubkey: fx_text("test.key.pub") };
+        assert!(fetch_manifest(&http_client(), &cfg).await.is_err());
+    }
+}

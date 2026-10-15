@@ -15,6 +15,8 @@ mod sanitize;
 mod secrets;
 mod state;
 mod sync;
+mod updater;
+mod updates;
 #[cfg(test)]
 mod tests;
 
@@ -70,7 +72,44 @@ fn show_main(app: &AppHandle, state: &state::AppState) {
     }
 }
 
+/// Command-line helpers that run without opening a window.
+fn cli() -> Option<i32> {
+    let args: Vec<String> = std::env::args().collect();
+    match args.get(1).map(String::as_str) {
+        Some("--version") => {
+            println!("vela-mail {}", env!("CARGO_PKG_VERSION"));
+            Some(0)
+        }
+        // Used by the release workflow: prove a release verifies with the key in this build.
+        Some("--verify-release") if args.len() == 4 => {
+            let cfg = updater::build_config();
+            let run = || -> Result<String, String> {
+                let manifest: updater::Manifest = serde_json::from_slice(&std::fs::read(&args[2]).map_err(|e| e.to_string())?).map_err(|e| e.to_string())?;
+                let bytes = std::fs::read(&args[3]).map_err(|e| e.to_string())?;
+                let dir = std::env::temp_dir().join(format!("vela-verify-{}", std::process::id()));
+                let staged = updater::verify_and_unpack(&cfg, &manifest, &bytes, &dir).map_err(|e| e.to_string())?;
+                let _ = std::fs::remove_dir_all(&dir);
+                Ok(format!("OK: Vela {} verified with the built-in key ({})", manifest.version, staged.display()))
+            };
+            match run() {
+                Ok(msg) => {
+                    println!("{msg}");
+                    Some(0)
+                }
+                Err(e) => {
+                    eprintln!("FAILED: {e}");
+                    Some(1)
+                }
+            }
+        }
+        _ => None,
+    }
+}
+
 pub fn run() {
+    if let Some(code) = cli() {
+        std::process::exit(code);
+    }
     env_logger::Builder::from_env(env_logger::Env::default().default_filter_or("warn")).init();
     apply_linux_env();
     files::clean_temp();
@@ -127,6 +166,7 @@ pub fn run() {
                 show_main(&handle, &st);
             });
             sync::spawn(app.handle().clone());
+            updates::spawn(app.handle().clone());
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -186,6 +226,10 @@ pub fn run() {
             commands::save_attachment,
             commands::open_attachment,
             commands::attachment_preview,
+            updates::update_status,
+            updates::check_for_update,
+            updates::download_update,
+            updates::install_update,
         ])
         .run(tauri::generate_context!())
         .expect("error while running Vela");

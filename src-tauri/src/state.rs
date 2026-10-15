@@ -32,12 +32,18 @@ pub struct AppState {
     pub files: Mutex<HashMap<String, PickedFile>>,
     pub identities: Mutex<HashMap<String, Identity>>,
     pub pending_mailto: Mutex<Option<String>>,
+    pub updater: crate::updater::UpdaterConfig,
+    pub update_http: reqwest::Client,
+    pub update: Mutex<crate::updater::UpdateStatus>,
+    pub update_lock: tokio::sync::Mutex<()>,
+    pub staged_update: Mutex<Option<PathBuf>>,
     limiters: Mutex<HashMap<String, Arc<Semaphore>>>,
     details: Mutex<VecDeque<(String, String, bool, ThreadDetail)>>,
 }
 
 impl AppState {
     pub fn new(auth: Arc<Auth>, cache: Arc<Cache>) -> Self {
+        let updater_cfg = crate::updater::build_config();
         AppState {
             auth,
             cache,
@@ -48,6 +54,11 @@ impl AppState {
             files: Mutex::new(HashMap::new()),
             identities: Mutex::new(HashMap::new()),
             pending_mailto: Mutex::new(None),
+            update: Mutex::new(crate::updater::UpdateStatus::initial(updater_cfg.configured())),
+            updater: updater_cfg,
+            update_http: crate::updater::http_client(),
+            update_lock: tokio::sync::Mutex::new(()),
+            staged_update: Mutex::new(None),
             limiters: Mutex::new(HashMap::new()),
             details: Mutex::new(VecDeque::new()),
         }

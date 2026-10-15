@@ -102,6 +102,7 @@ pub struct Settings {
     pub reduced_motion: String,
     pub shortcuts: HashMap<String, String>,
     pub recent_searches: Vec<String>,
+    pub auto_update: bool,
 }
 
 impl Default for Settings {
@@ -134,6 +135,7 @@ impl Default for Settings {
             reduced_motion: "system".into(),
             shortcuts: HashMap::new(),
             recent_searches: vec![],
+            auto_update: true,
         }
     }
 }

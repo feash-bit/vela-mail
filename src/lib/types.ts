@@ -205,6 +205,22 @@ export interface Settings {
   reducedMotion: "system" | "on" | "off";
   shortcuts: Record<string, string>;
   recentSearches: string[];
+  autoUpdate: boolean;
+}
+
+export type UpdateState = "notConfigured" | "idle" | "checking" | "upToDate" | "available" | "downloading" | "ready" | "error";
+
+export interface UpdateStatus {
+  state: UpdateState;
+  current: string;
+  version: string | null;
+  notes: string | null;
+  pubDate: string | null;
+  progress: number | null;
+  installKind: "user" | "system" | "dev";
+  canInstall: boolean;
+  error: string | null;
+  checkedAt: number | null;
 }
 
 export interface AppErr {

@@ -6,6 +6,7 @@ import { useApp } from "../../state/app";
 import { useMail } from "../../state/mail";
 import { IconButton, Spinner } from "../ui/primitives";
 import { SearchBar } from "./SearchBar";
+import { UpdatePill } from "./UpdatePill";
 import s from "./shell.module.css";
 import { WindowControls } from "./WindowControls";
 
@@ -52,6 +53,7 @@ export function TitleBar() {
       <div className={s.titleLeft} data-tauri-drag-region={custom ? "" : undefined} />
       <SearchBar />
       <div className={s.titleRight} data-tauri-drag-region={custom ? "" : undefined}>
+        <UpdatePill />
         <SyncStatus />
         <IconButton label="Keyboard shortcuts" keys="?" onClick={() => runAction("help")}>
           <CircleHelp size={16} />
