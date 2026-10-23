@@ -302,12 +302,17 @@ mod tests {
         let task = tokio::spawn(async move { wait_for_code(&l, "good").await });
         // Like a browser's speculative pre-connection: connects, sends nothing.
         let _idle = tokio::net::TcpStream::connect(addr).await.unwrap();
-        let mut s = tokio::net::TcpStream::connect(addr).await.unwrap();
-        s.write_all(b"GET /?code=abc&state=good HTTP/1.1\r\nHost: x\r\n\r\n").await.unwrap();
-        let mut out = String::new();
-        let _ = s.read_to_string(&mut out).await;
-        assert!(out.contains("signed in"));
-        let result = tokio::time::timeout(Duration::from_secs(2), task).await.expect("blocked by idle connection");
-        assert_eq!(result.unwrap().unwrap(), "abc");
+        // The whole real redirect must finish well inside READ_TIMEOUT (5 s).
+        let result = tokio::time::timeout(Duration::from_secs(2), async move {
+            let mut s = tokio::net::TcpStream::connect(addr).await.unwrap();
+            s.write_all(b"GET /?code=abc&state=good HTTP/1.1\r\nHost: x\r\n\r\n").await.unwrap();
+            let mut out = String::new();
+            let _ = s.read_to_string(&mut out).await;
+            assert!(out.contains("signed in"));
+            task.await.unwrap()
+        })
+        .await
+        .expect("the idle connection held up the real redirect");
+        assert_eq!(result.unwrap(), "abc");
     }
 }
