@@ -5,7 +5,10 @@ import s from "./ui.module.css";
 
 const FOCUSABLE = 'button:not([disabled]), [href], input:not([disabled]), select, textarea, [tabindex]:not([tabindex="-1"]), [contenteditable="true"]';
 
-/** Modal dialog with a focus trap. Escape and clicking the backdrop close it. */
+/**
+ * Modal dialog with a focus trap. Escape and clicking the backdrop close it,
+ * unless `dismissible` is false (then only the dialog's own controls can).
+ */
 export function Dialog({
   onClose,
   label,
@@ -13,6 +16,7 @@ export function Dialog({
   className,
   style,
   initialFocus,
+  dismissible = true,
 }: {
   onClose: () => void;
   label: string;
@@ -20,6 +24,7 @@ export function Dialog({
   className?: string;
   style?: CSSProperties;
   initialFocus?: string;
+  dismissible?: boolean;
 }) {
   const ref = useRef<HTMLDivElement>(null);
   // Captured during the first render, before any child autoFocus runs.
@@ -39,7 +44,7 @@ export function Dialog({
   const onKey = (e: React.KeyboardEvent) => {
     if (e.key === "Escape") {
       e.stopPropagation();
-      onClose();
+      if (dismissible) onClose();
       return;
     }
     if (e.key !== "Tab" || !ref.current) return;
@@ -57,7 +62,7 @@ export function Dialog({
   };
 
   return createPortal(
-    <div className={s.scrim} onMouseDown={(e) => e.target === e.currentTarget && onClose()} onKeyDown={onKey}>
+    <div className={s.scrim} onMouseDown={(e) => dismissible && e.target === e.currentTarget && onClose()} onKeyDown={onKey}>
       <div ref={ref} role="dialog" aria-modal="true" aria-label={label} tabIndex={-1} className={`${s.dialog} ${className ?? ""}`} style={style}>
         {children}
       </div>
