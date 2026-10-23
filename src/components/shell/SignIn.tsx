@@ -36,13 +36,13 @@ export function useSignIn() {
 
 function SignInWaiting({ onCancel }: { onCancel: () => void }) {
   return (
-    <Dialog onClose={onCancel} label="Signing in" className={s.wait}>
+    <Dialog onClose={onCancel} label="Signing in" className={s.wait} dismissible={false}>
       <div className={s.waitIcon}>
         <Spinner size={22} />
       </div>
       <h2 className={s.waitTitle}>Finish signing in with Google</h2>
       <p className={s.waitBody}>
-        A Google sign-in page opened in your web browser. Choose your account and allow Vela to manage your mail, then come back here.
+        A Google sign-in page opened in your web browser. Choose your account and allow Vela to manage your mail, then come back here. Keep this window open until you're done — you have 10 minutes.
       </p>
       <p className={s.waitNote}>
         <ExternalLink size={13} /> Vela never sees your password. Your sign-in token is stored in your system keyring.

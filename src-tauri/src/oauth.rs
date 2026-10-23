@@ -17,14 +17,21 @@ use std::sync::Arc;
 use std::time::Duration;
 use tokio::io::{AsyncReadExt, AsyncWriteExt};
 use tokio::net::TcpListener;
-use tokio::sync::Notify;
+use tokio::sync::{mpsc, Notify, Semaphore};
+use tokio::task::JoinSet;
 
 const AUTH_URL: &str = "https://accounts.google.com/o/oauth2/v2/auth";
 const TOKEN_URL: &str = "https://oauth2.googleapis.com/token";
 const REVOKE_URL: &str = "https://oauth2.googleapis.com/revoke";
 /// Read, compose, send, label and trash mail. Does not allow permanent deletion.
 pub const SCOPE: &str = "https://www.googleapis.com/auth/gmail.modify";
-const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(300);
+/// Long enough for 2-step verification and Google's "unverified app" screens.
+const SIGN_IN_TIMEOUT: Duration = Duration::from_secs(600);
+/// Most loopback connections handled at once; extras are dropped so a local
+/// process can't exhaust resources.
+const MAX_CONCURRENT_CONNECTIONS: usize = 16;
+/// How long one connection may take to deliver its request head.
+const READ_TIMEOUT: Duration = Duration::from_secs(5);
 
 #[derive(Debug, Deserialize)]
 pub struct TokenResponse {
@@ -95,7 +102,7 @@ pub async fn sign_in(
     let code = tokio::select! {
         r = wait_for_code(&listener, &state) => r?,
         _ = cancel.notified() => return Err(AppError::Cancelled),
-        _ = tokio::time::sleep(SIGN_IN_TIMEOUT) => return Err(AppError::Invalid("Sign-in timed out after 5 minutes. Try again.".into())),
+        _ = tokio::time::sleep(SIGN_IN_TIMEOUT) => return Err(AppError::Invalid("Sign-in timed out after 10 minutes. Try again.".into())),
     };
     drop(listener);
 
@@ -126,49 +133,79 @@ pub async fn sign_in(
 }
 
 /// Accept connections until the browser delivers `?code=…&state=…`.
+///
+/// Every connection is handled in its own task, so idle ones (browsers open
+/// speculative pre-connections that send nothing) can't hold up the real
+/// redirect. The first conclusive result (code, error or state mismatch) is
+/// returned; remaining tasks are aborted when the `JoinSet` drops.
 async fn wait_for_code(listener: &TcpListener, expected_state: &str) -> AppResult<String> {
+    let (tx, mut rx) = mpsc::channel::<AppResult<String>>(1);
+    let permits = Arc::new(Semaphore::new(MAX_CONCURRENT_CONNECTIONS));
+    let expected: Arc<str> = Arc::from(expected_state);
+    let mut tasks = JoinSet::new();
     loop {
-        let (mut sock, _) = listener.accept().await?;
-        let mut buf = vec![0u8; 8192];
-        let mut n = 0;
-        // Read just the request head; ignore bodies.
-        while n < buf.len() {
-            let read = tokio::time::timeout(Duration::from_secs(5), sock.read(&mut buf[n..])).await;
-            match read {
-                Ok(Ok(0)) | Err(_) => break,
-                Ok(Ok(k)) => {
-                    n += k;
-                    if buf[..n].windows(4).any(|w| w == b"\r\n\r\n") {
-                        break;
+        tokio::select! {
+            accepted = listener.accept() => {
+                let (sock, _) = accepted?;
+                let Ok(permit) = permits.clone().try_acquire_owned() else {
+                    continue; // too many in flight: drop this connection
+                };
+                let tx = tx.clone();
+                let expected = expected.clone();
+                tasks.spawn(async move {
+                    let _permit = permit;
+                    if let Some(result) = handle_connection(sock, &expected).await {
+                        let _ = tx.send(result).await;
                     }
-                }
-                Ok(Err(_)) => break,
+                });
             }
+            Some(result) = rx.recv() => return result,
         }
-        let head = String::from_utf8_lossy(&buf[..n]);
-        let target = head.lines().next().and_then(|l| l.split(' ').nth(1)).unwrap_or("/");
-        let parsed = url::Url::parse(&format!("http://127.0.0.1{target}")).ok();
-        let params: Vec<(String, String)> = parsed
-            .as_ref()
-            .map(|u| u.query_pairs().into_owned().collect())
-            .unwrap_or_default();
-        let get = |k: &str| params.iter().find(|(a, _)| a == k).map(|(_, v)| v.clone());
-
-        if parsed.as_ref().map(|u| u.path() != "/").unwrap_or(true) || (get("code").is_none() && get("error").is_none()) {
-            respond(&mut sock, 404, "Not found", "").await;
-            continue;
-        }
-        if get("state").as_deref() != Some(expected_state) {
-            respond(&mut sock, 400, "Sign-in link didn't match", "Go back to Vela and start sign-in again.").await;
-            return Err(AppError::Invalid("Sign-in response didn't match this request. Try again.".into()));
-        }
-        if let Some(err) = get("error") {
-            respond(&mut sock, 200, "Sign-in cancelled", "You can close this tab and return to Vela.").await;
-            return Err(if err == "access_denied" { AppError::Cancelled } else { AppError::Invalid(format!("Google returned: {err}")) });
-        }
-        respond(&mut sock, 200, "You're signed in", "You can close this tab and return to Vela.").await;
-        return Ok(get("code").unwrap_or_default());
     }
+}
+
+/// Reads one request and answers it. Returns `Some` only when the request
+/// settles the sign-in (a code, an error from Google, or a state mismatch).
+async fn handle_connection(mut sock: tokio::net::TcpStream, expected_state: &str) -> Option<AppResult<String>> {
+    let mut buf = vec![0u8; 8192];
+    let mut n = 0;
+    // Read just the request head; ignore bodies.
+    while n < buf.len() {
+        let read = tokio::time::timeout(READ_TIMEOUT, sock.read(&mut buf[n..])).await;
+        match read {
+            Ok(Ok(0)) | Err(_) => break,
+            Ok(Ok(k)) => {
+                n += k;
+                if buf[..n].windows(4).any(|w| w == b"\r\n\r\n") {
+                    break;
+                }
+            }
+            Ok(Err(_)) => break,
+        }
+    }
+    let head = String::from_utf8_lossy(&buf[..n]);
+    let target = head.lines().next().and_then(|l| l.split(' ').nth(1)).unwrap_or("/");
+    let parsed = url::Url::parse(&format!("http://127.0.0.1{target}")).ok();
+    let params: Vec<(String, String)> = parsed
+        .as_ref()
+        .map(|u| u.query_pairs().into_owned().collect())
+        .unwrap_or_default();
+    let get = |k: &str| params.iter().find(|(a, _)| a == k).map(|(_, v)| v.clone());
+
+    if parsed.as_ref().map(|u| u.path() != "/").unwrap_or(true) || (get("code").is_none() && get("error").is_none()) {
+        respond(&mut sock, 404, "Not found", "").await;
+        return None;
+    }
+    if get("state").as_deref() != Some(expected_state) {
+        respond(&mut sock, 400, "Sign-in link didn't match", "Go back to Vela and start sign-in again.").await;
+        return Some(Err(AppError::Invalid("Sign-in response didn't match this request. Try again.".into())));
+    }
+    if let Some(err) = get("error") {
+        respond(&mut sock, 200, "Sign-in cancelled", "You can close this tab and return to Vela.").await;
+        return Some(Err(if err == "access_denied" { AppError::Cancelled } else { AppError::Invalid(format!("Google returned: {err}")) }));
+    }
+    respond(&mut sock, 200, "You're signed in", "You can close this tab and return to Vela.").await;
+    Some(Ok(get("code").unwrap_or_default()))
 }
 
 async fn respond(sock: &mut tokio::net::TcpStream, status: u16, title: &str, body: &str) {
@@ -256,5 +293,26 @@ mod tests {
         assert!(send("/favicon.ico").await.contains("404"));
         assert!(send("/?code=abc&state=good").await.contains("signed in"));
         assert_eq!(task.await.unwrap().unwrap(), "abc");
+    }
+
+    #[tokio::test]
+    async fn idle_preconnection_does_not_block_the_real_redirect() {
+        let l = TcpListener::bind("127.0.0.1:0").await.unwrap();
+        let addr = l.local_addr().unwrap();
+        let task = tokio::spawn(async move { wait_for_code(&l, "good").await });
+        // Like a browser's speculative pre-connection: connects, sends nothing.
+        let _idle = tokio::net::TcpStream::connect(addr).await.unwrap();
+        // The whole real redirect must finish well inside READ_TIMEOUT (5 s).
+        let result = tokio::time::timeout(Duration::from_secs(2), async move {
+            let mut s = tokio::net::TcpStream::connect(addr).await.unwrap();
+            s.write_all(b"GET /?code=abc&state=good HTTP/1.1\r\nHost: x\r\n\r\n").await.unwrap();
+            let mut out = String::new();
+            let _ = s.read_to_string(&mut out).await;
+            assert!(out.contains("signed in"));
+            task.await.unwrap()
+        })
+        .await
+        .expect("the idle connection held up the real redirect");
+        assert_eq!(result.unwrap(), "abc");
     }
 }
