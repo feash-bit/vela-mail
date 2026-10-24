@@ -172,17 +172,20 @@ pub fn update_status(app: AppHandle) -> UpdateStatus {
 }
 
 #[tauri::command]
-pub async fn check_for_update(app: AppHandle) -> AppResult<UpdateStatus> {
+pub async fn check_for_update(app: AppHandle, window: tauri::WebviewWindow) -> AppResult<UpdateStatus> {
+    crate::commands::main_only(&window)?;
     let auto = app.state::<AppState>().settings().auto_update;
     check(&app, auto).await
 }
 
 #[tauri::command]
-pub async fn download_update(app: AppHandle) -> AppResult<UpdateStatus> {
+pub async fn download_update(app: AppHandle, window: tauri::WebviewWindow) -> AppResult<UpdateStatus> {
+    crate::commands::main_only(&window)?;
     download(&app).await
 }
 
 #[tauri::command]
-pub fn install_update(app: AppHandle) -> AppResult<()> {
+pub fn install_update(app: AppHandle, window: tauri::WebviewWindow) -> AppResult<()> {
+    crate::commands::main_only(&window)?;
     install_and_restart(&app)
 }

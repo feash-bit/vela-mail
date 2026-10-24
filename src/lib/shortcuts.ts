@@ -20,6 +20,7 @@ export type ShortcutAction =
   | "next"
   | "prev"
   | "open"
+  | "openWindow"
   | "back"
   | "select"
   | "selectAll"
@@ -57,6 +58,7 @@ export const DEFAULT_SHORTCUTS: ShortcutDef[] = [
   { action: "next", label: "Next conversation", group: "Navigation", keys: "j, arrowdown" },
   { action: "prev", label: "Previous conversation", group: "Navigation", keys: "k, arrowup" },
   { action: "open", label: "Open conversation", group: "Navigation", keys: "enter" },
+  { action: "openWindow", label: "Open in new window", group: "Navigation", keys: "shift+enter" },
   { action: "back", label: "Back / close", group: "Navigation", keys: "escape" },
   { action: "select", label: "Select conversation", group: "Navigation", keys: "x" },
   { action: "selectAll", label: "Select all", group: "Navigation", keys: "mod+a" },

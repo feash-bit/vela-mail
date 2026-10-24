@@ -169,6 +169,23 @@ export interface MailChanged {
   fullRefresh: boolean;
 }
 
+/** Which email a pop-out reader window shows (mirrors `ReaderTarget` in models.rs). */
+export interface ReaderTarget {
+  accountId: string;
+  threadId: string;
+}
+
+/** How to reverse an action a pop-out window took before it closed. */
+export type UndoSpec = { kind: "modify"; add: string[]; remove: string[] } | { kind: "untrash" } | { kind: "unsnooze" };
+
+/** Sent by a pop-out window to the main window when it finished with its email and closed. */
+export interface ReaderDone {
+  accountId: string;
+  threadIds: string[];
+  message: string;
+  undo: UndoSpec;
+}
+
 export interface SyncState {
   accountId: string;
   syncing: boolean;

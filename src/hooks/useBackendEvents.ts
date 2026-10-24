@@ -2,9 +2,12 @@ import { useEffect } from "react";
 import { mailtoSeed, newSeed } from "../lib/compose";
 import { api, on } from "../lib/ipc";
 import type { LocalFile } from "../lib/types";
+import { isSettings, parseReaderDone, parseThreadChanged } from "../lib/windowEvents";
+import { windowLabel } from "../lib/window";
 import { useApp } from "../state/app";
 import { useCompose } from "../state/compose";
 import { useMail } from "../state/mail";
+import { handleReaderDone } from "../state/readerDone";
 
 /** Files dropped on the window go to the focused composer, or start a new one. */
 export const FILES_EVENT = "vela:files";
@@ -38,6 +41,19 @@ export function useBackendEvents() {
       on("app://mailto", (url) => {
         const acct = useApp.getState().activeAccount;
         if (acct) useCompose.getState().open(acct, mailtoSeed(url));
+      }),
+      on("settings://changed", (s) => {
+        if (isSettings(s)) useApp.getState().receiveSettings(s);
+      }),
+      // A pop-out window changed some conversations.
+      on("vela://thread-changed", (p) => {
+        const e = parseThreadChanged(p);
+        if (e && e.source !== windowLabel()) useMail.getState().applyChanged({ accountId: e.accountId, threadIds: e.threadIds, labelsChanged: true, fullRefresh: false });
+      }),
+      // A pop-out window finished with its email and closed.
+      on("vela://reader-done", (p) => {
+        const done = parseReaderDone(p);
+        if (done) handleReaderDone(done);
       }),
       on("files://hover", (v) => useApp.getState().setDropHover(v)),
       on("files://dropped", ({ files, errors }) => {

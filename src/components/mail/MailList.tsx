@@ -22,7 +22,7 @@ import {
 } from "lucide-react";
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { viewTitle } from "../../lib/views";
-import { compose, OPEN_DRAFT, toggleRead, toggleStar, usePicker } from "../../state/actions";
+import { compose, OPEN_DRAFT, openInWindow, toggleRead, toggleStar, usePicker } from "../../state/actions";
 import { useApp } from "../../state/app";
 import { sortThreads, useMail, type SortMode } from "../../state/mail";
 import { anchorFrom, Menu, useMenu, type Anchor, type MenuEntry } from "../ui/Menu";
@@ -135,7 +135,7 @@ export function MailList({ full }: { full: boolean }) {
 
   const showMenu = useCallback(
     (ids: string[], anchor: Anchor) => {
-      setMenuItems(threadMenuItems(ids, useMail.getState().threads, useMail.getState().view, anchor));
+      setMenuItems(threadMenuItems(ids, useMail.getState().threads, useMail.getState().view, anchor, { openWindow: true }));
       openAt(anchor);
     },
     [openAt],
@@ -156,7 +156,7 @@ export function MailList({ full }: { full: boolean }) {
         else m.select(t.id);
       },
       onDoubleClick: (t) => {
-        if (!t.labelIds.includes("DRAFT") || useMail.getState().view.kind !== "label") useMail.getState().open(t.id);
+        if (!t.labelIds.includes("DRAFT") || useMail.getState().view.kind !== "label") openInWindow(t.id);
       },
       onCheck: (t, range) => useMail.getState().toggleCheck(t.id, range),
       onContext: (t, e) => {

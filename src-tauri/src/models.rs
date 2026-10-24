@@ -20,6 +20,14 @@ pub struct Account {
     pub status: AccountStatus,
 }
 
+/// Which email a pop-out reader window shows.
+#[derive(Debug, Clone, Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ReaderTarget {
+    pub account_id: String,
+    pub thread_id: String,
+}
+
 #[derive(Debug, Clone, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub struct AppInfo {

@@ -29,7 +29,7 @@ import { api, toAppErr } from "../../lib/ipc";
 import type { Address, DraftInput, ForwardedAttachment, LocalFile } from "../../lib/types";
 import { FILES_EVENT } from "../../hooks/useBackendEvents";
 import { useApp } from "../../state/app";
-import { useCompose, type ComposerInstance } from "../../state/compose";
+import { registerSaver, unregisterSaver, useCompose, type ComposerInstance } from "../../state/compose";
 import { HtmlFrame } from "../reader/HtmlFrame";
 import { fileBadge } from "../reader/Attachments";
 import { ConfirmDialog } from "../ui/Dialog";
@@ -223,6 +223,12 @@ export function Composer({ instance }: { instance: ComposerInstance }) {
     const t = setTimeout(() => save(), AUTOSAVE_MS);
     return () => clearTimeout(t);
   }, [version, to, cc, bcc, subject, files, forwarded, save, instance.sending]);
+
+  // Lets a closing pop-out window save this draft before it goes away.
+  useEffect(() => {
+    registerSaver(key, save);
+    return () => unregisterSaver(key);
+  }, [key, save]);
 
   // Keep the store's copy current so the draft survives being hidden or moved.
   const snapRef = useRef(snapshot);

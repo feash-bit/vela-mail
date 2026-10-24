@@ -1,7 +1,9 @@
 import { create } from "zustand";
-import { api, toAppErr } from "../lib/ipc";
+import { snoozedMessage } from "../lib/format";
+import { api, broadcast, toAppErr } from "../lib/ipc";
 import type { AppErr, MailChanged, ThreadDetail, ThreadSummary, View } from "../lib/types";
 import { viewKey } from "../lib/views";
+import { windowLabel } from "../lib/window";
 import { useApp } from "./app";
 
 export type SortMode = "newest" | "oldest" | "unread" | "sender";
@@ -34,6 +36,8 @@ interface MailStore {
   detailLoading: string | null;
   detailError: AppErr | null;
   undo: Undo | null;
+  /** A pop-out window showing one email: threads are updated in place and never leave the list. */
+  standalone: boolean;
 
   setView: (v: View) => void;
   reload: (opts?: { silent?: boolean }) => Promise<void>;
@@ -99,6 +103,11 @@ function withLabels(t: ThreadSummary, add: string[], remove: string[]): ThreadSu
   };
 }
 
+/** Tell the other windows these conversations changed, so they can refresh them. */
+export function announceChanged(accountId: string, threadIds: string[]) {
+  broadcast("vela://thread-changed", { source: windowLabel(), accountId, threadIds });
+}
+
 let labelTimer: ReturnType<typeof setTimeout> | null = null;
 function refreshCounts() {
   if (labelTimer) clearTimeout(labelTimer);
@@ -108,7 +117,11 @@ function refreshCounts() {
 export const useMail = create<MailStore>((set, get) => {
   /** Remove threads that left the view, keeping the cursor on a sensible neighbour. */
   function applyLocal(ids: string[], update: (t: ThreadSummary) => ThreadSummary | null) {
-    const { threads, selectedId, view, openId } = get();
+    const { threads, selectedId, view, openId, standalone } = get();
+    if (standalone) {
+      set({ threads: threads.map((t) => (ids.includes(t.id) ? (update(t) ?? t) : t)) });
+      return;
+    }
     const idx = selectedId ? threads.findIndex((t) => t.id === selectedId) : -1;
     const next: ThreadSummary[] = [];
     for (const t of threads) {
@@ -135,10 +148,11 @@ export const useMail = create<MailStore>((set, get) => {
     });
   }
 
-  async function guarded(snapshot: Partial<MailStore>, fn: () => Promise<void>, fail: string) {
+  async function guarded(snapshot: Partial<MailStore>, fn: () => Promise<void>, fail: string, accountId: string, ids: string[]) {
     try {
       await fn();
       refreshCounts();
+      announceChanged(accountId, ids);
     } catch (e) {
       set(snapshot as MailStore);
       useApp.getState().error(e, fail);
@@ -171,6 +185,7 @@ export const useMail = create<MailStore>((set, get) => {
     detailLoading: null,
     detailError: null,
     undo: null,
+    standalone: false,
 
     setView: (view) => {
       const same = viewKey(view) === viewKey(get().view);
@@ -292,7 +307,8 @@ export const useMail = create<MailStore>((set, get) => {
         const d = await api.getThread(acct, id, remote);
         set((s) => ({ details: { ...s.details, [id]: d }, detailLoading: s.detailLoading === id ? null : s.detailLoading }));
         const t = get().threads.find((x) => x.id === id);
-        if (t?.unread && settings?.markReadOnOpen && (get().selectedId === id || get().openId === id)) {
+        // A pop-out marks its email read once, itself, so it can be marked unread again.
+        if (!get().standalone && t?.unread && settings?.markReadOnOpen && (get().selectedId === id || get().openId === id)) {
           get().setRead([id], true);
         }
       } catch (e) {
@@ -305,12 +321,13 @@ export const useMail = create<MailStore>((set, get) => {
       if (!acct || !ids.length) return;
       const before = snap();
       applyLocal(ids, (t) => withLabels(t, add, remove));
-      await guarded(before, () => api.modifyThreads(acct, ids, add, remove), "Couldn't update that conversation.");
+      await guarded(before, () => api.modifyThreads(acct, ids, add, remove), "Couldn't update that conversation.", acct, ids);
       if (message && undoable) {
         offerUndo(message, async () => {
           set(before);
           await api.modifyThreads(acct, ids, remove, add);
           refreshCounts();
+          announceChanged(acct, ids);
         });
       }
     },
@@ -328,11 +345,12 @@ export const useMail = create<MailStore>((set, get) => {
       if (!acct || !ids.length) return;
       const before = snap();
       applyLocal(ids, (t) => (get().view.kind === "label" && (get().view as { labelId: string }).labelId === "TRASH" ? t : withLabels(t, ["TRASH"], ["INBOX"])));
-      await guarded(before, () => api.trashThreads(acct, ids), "Couldn't move to Trash.");
+      await guarded(before, () => api.trashThreads(acct, ids), "Couldn't move to Trash.", acct, ids);
       offerUndo(ids.length > 1 ? `Moved ${ids.length} conversations to Trash` : "Moved to Trash", async () => {
         set(before);
         await api.trashThreads(acct, ids, true);
         refreshCounts();
+        announceChanged(acct, ids);
       });
     },
 
@@ -341,7 +359,7 @@ export const useMail = create<MailStore>((set, get) => {
       if (!acct) return;
       const before = snap();
       applyLocal(ids, (t) => withLabels(t, [], ["TRASH"]));
-      await guarded(before, () => api.trashThreads(acct, ids, true), "Couldn't restore.");
+      await guarded(before, () => api.trashThreads(acct, ids, true), "Couldn't restore.", acct, ids);
       useApp.getState().toast("Restored from Trash");
     },
 
@@ -350,12 +368,12 @@ export const useMail = create<MailStore>((set, get) => {
       if (!acct || !ids.length) return;
       const before = snap();
       applyLocal(ids, (t) => (until ? { ...withLabels(t, [], ["INBOX"]), snoozedUntil: until } : { ...withLabels(t, ["INBOX"], []), snoozedUntil: null }));
-      await guarded(before, () => api.snoozeThreads(acct, ids, until), "Couldn't snooze.");
+      await guarded(before, () => api.snoozeThreads(acct, ids, until), "Couldn't snooze.", acct, ids);
       if (until) {
-        const when = new Date(until).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" });
-        offerUndo(`Snoozed until ${when}`, async () => {
+        offerUndo(snoozedMessage(until), async () => {
           set(before);
           await api.snoozeThreads(acct, ids, null);
+          announceChanged(acct, ids);
         });
       } else useApp.getState().toast("Moved back to Inbox");
     },

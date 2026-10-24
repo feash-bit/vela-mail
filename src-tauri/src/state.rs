@@ -5,7 +5,7 @@ use crate::cache::Cache;
 use crate::config::{self, Settings, StoredAccount};
 use crate::error::{AppError, AppResult};
 use crate::gmail::Gmail;
-use crate::models::{Identity, ThreadDetail};
+use crate::models::{Identity, ReaderTarget, ThreadDetail};
 use std::collections::{HashMap, VecDeque};
 use std::path::PathBuf;
 use std::sync::{Arc, Mutex, RwLock};
@@ -32,6 +32,10 @@ pub struct AppState {
     pub files: Mutex<HashMap<String, PickedFile>>,
     pub identities: Mutex<HashMap<String, Identity>>,
     pub pending_mailto: Mutex<Option<String>>,
+    /// Pop-out reader windows: window label -> the email it shows.
+    pub readers: Mutex<HashMap<String, ReaderTarget>>,
+    /// Last size (logical pixels) of a pop-out window, used for the next one.
+    pub reader_size: Mutex<(f64, f64)>,
     pub updater: crate::updater::UpdaterConfig,
     pub update_http: reqwest::Client,
     pub update: Mutex<crate::updater::UpdateStatus>,
@@ -54,6 +58,8 @@ impl AppState {
             files: Mutex::new(HashMap::new()),
             identities: Mutex::new(HashMap::new()),
             pending_mailto: Mutex::new(None),
+            readers: Mutex::new(HashMap::new()),
+            reader_size: Mutex::new(crate::reader_window::load_size()),
             update: Mutex::new(crate::updater::UpdateStatus::initial(updater_cfg.configured())),
             updater: updater_cfg,
             update_http: crate::updater::http_client(),

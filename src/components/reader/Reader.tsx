@@ -7,30 +7,24 @@ import {
   ChevronUp,
   CircleAlert,
   Ellipsis,
-  Forward,
   Inbox,
   Mail,
   MailOpen,
   RefreshCw,
-  Reply,
-  ReplyAll,
+  SquareArrowOutUpRight,
   Star,
   Tag,
   Trash2,
 } from "lucide-react";
-import { useEffect, useMemo, useState } from "react";
-import { nameOf } from "../../lib/format";
-import { HIDDEN_CHIP_LABELS } from "../../lib/views";
-import { openDraft, startReply, toggleRead, toggleStar, usePicker } from "../../state/actions";
+import { useMemo, useState } from "react";
+import { openInWindow, toggleRead, toggleStar, usePicker } from "../../state/actions";
 import { useApp } from "../../state/app";
-import { useCompose } from "../../state/compose";
 import { sortThreads, useMail } from "../../state/mail";
-import { Composer } from "../compose/Composer";
 import { threadMenuItems } from "../mail/threadMenu";
 import { anchorFrom, Menu, useMenu } from "../ui/Menu";
 import { Button, EmptyState, IconButton, Kbd, Skeleton } from "../ui/primitives";
 import { LogoMark } from "../shell/LogoMark";
-import { MessageCard } from "./MessageCard";
+import { ConversationBody } from "./ConversationBody";
 import s from "./reader.module.css";
 
 function Idle() {
@@ -71,7 +65,6 @@ function Loading() {
 
 export function Reader({ full }: { full: boolean }) {
   const accountId = useApp((a) => a.activeAccount);
-  const labels = useApp((a) => (accountId ? a.labels[accountId] : undefined));
   const selectedId = useMail((m) => m.selectedId);
   const openId = useMail((m) => m.openId);
   const id = full ? openId : selectedId;
@@ -82,41 +75,18 @@ export function Reader({ full }: { full: boolean }) {
   const view = useMail((m) => m.view);
   const threads = useMail((m) => m.threads);
   const sort = useMail((m) => m.sort);
-  const composers = useCompose((c) => c.composers);
-  const inline = composers.find((c) => c.placement === "inline" && c.seed.threadId === id && !c.minimized);
-  const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [showOlder, setShowOlder] = useState(false);
   const [scrolled, setScrolled] = useState(false);
   const { menu, openAt, close } = useMenu();
-
-  // Expand unread messages plus the latest one when a conversation opens.
-  useEffect(() => {
-    if (!detail) return;
-    const msgs = detail.messages;
-    const next = new Set(msgs.filter((m) => m.unread).map((m) => m.id));
-    if (msgs.length) next.add(msgs[msgs.length - 1].id);
-    setExpanded(next);
-    setShowOlder(false);
-  }, [detail?.id]);
 
   const list = useMemo(() => sortThreads(threads, sort), [threads, sort]);
   const index = list.findIndex((t) => t.id === id);
 
   if (!id) return full ? null : <section className={s.reader}><Idle /></section>;
 
-  const labelById = new Map((labels ?? []).map((l) => [l.id, l]));
-  const chips = (detail?.labelIds ?? summary?.labelIds ?? []).filter((l) => !HIDDEN_CHIP_LABELS.has(l)).map((l) => labelById.get(l)).filter(Boolean);
   const inTrash = view.kind === "label" && view.labelId === "TRASH";
   const inInbox = (summary?.labelIds ?? detail?.labelIds ?? []).includes("INBOX");
   const ids = [id];
   const m = useMail.getState();
-
-  const messages = detail?.messages ?? [];
-  // Long threads: collapse the middle into "N older messages".
-  const hideMiddle = !showOlder && messages.length > 5;
-  const visible = hideMiddle ? [messages[0], ...messages.slice(-3)] : messages;
-  const hiddenCount = messages.length - visible.length;
-  const last = messages[messages.length - 1];
 
   return (
     <section className={s.reader} aria-label="Conversation">
@@ -166,6 +136,9 @@ export function Reader({ full }: { full: boolean }) {
           </IconButton>
         </div>
         <span className={s.spacer} />
+        <IconButton label="Open in new window" keys="shift+enter" onClick={() => openInWindow(id)}>
+          <SquareArrowOutUpRight size={16} />
+        </IconButton>
         {index >= 0 && (
           <span className={s.position}>
             {index + 1} of {list.length}
@@ -194,73 +167,7 @@ export function Reader({ full }: { full: boolean }) {
             }
           />
         ) : detail ? (
-          <div className={s.inner} key={detail.id}>
-            <h1 className={s.subject} data-selectable>
-              {detail.subject || summary?.subject || "(no subject)"}
-            </h1>
-            <div className={s.meta}>
-              {chips.map((l) => (
-                <span key={l!.id} className={s.labelPill}>
-                  {l!.color && <span className={s.labelSwatch} style={{ background: l!.color.background }} />}
-                  {l!.name}
-                </span>
-              ))}
-              {messages.length > 1 && <span className={s.metaNote}>{messages.length} messages</span>}
-            </div>
-
-            {summary?.hasDraft && !inline && (
-              <div className={s.draftCard}>
-                <strong>Draft</strong>
-                <span>You have an unsent reply in this conversation.</span>
-                <Button size="sm" onClick={() => openDraft(id)}>
-                  Continue draft
-                </Button>
-              </div>
-            )}
-
-            {visible.map((msg, i) => (
-              <div key={msg.id}>
-                {hideMiddle && i === 1 && (
-                  <button className={s.older} onClick={() => setShowOlder(true)}>
-                    <span>{hiddenCount} older messages</span>
-                  </button>
-                )}
-                <MessageCard
-                  m={msg}
-                  threadId={detail.id}
-                  remoteAllowed={detail.remoteAllowed}
-                  expanded={expanded.has(msg.id)}
-                  onToggle={() =>
-                    setExpanded((cur) => {
-                      const next = new Set(cur);
-                      if (next.has(msg.id)) next.delete(msg.id);
-                      else next.add(msg.id);
-                      return next;
-                    })
-                  }
-                />
-              </div>
-            ))}
-
-            {inline ? (
-              <Composer instance={inline} />
-            ) : (
-              last && (
-                <div className={s.replyBar}>
-                  <button className={s.replyBtn} onClick={() => startReply("reply")}>
-                    <Reply size={16} /> Reply to {nameOf(last.from)}
-                    <Kbd keys="r" />
-                  </button>
-                  <IconButton label="Reply all" keys="a" onClick={() => startReply("replyAll")} style={{ width: 44, height: 44 }}>
-                    <ReplyAll size={17} />
-                  </IconButton>
-                  <IconButton label="Forward" keys="f" onClick={() => startReply("forward")} style={{ width: 44, height: 44 }}>
-                    <Forward size={17} />
-                  </IconButton>
-                </div>
-              )
-            )}
-          </div>
+          <ConversationBody id={id} detail={detail} summary={summary} accountId={accountId} />
         ) : null}
       </div>
       {menu && <Menu anchor={menu.anchor} align="end" onClose={close} items={threadMenuItems(ids, threads, view, menu.anchor, { replies: true })} />}
