@@ -6,7 +6,7 @@
 # To update later: git pull at the project root, then run makepkg -si again.
 
 pkgname=vela-mail
-pkgver=0.1.1
+pkgver=0.1.2
 pkgrel=1
 pkgdesc="Vela — a fast, keyboard-first Gmail desktop client"
 arch=('x86_64' 'aarch64')

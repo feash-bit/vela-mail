@@ -1,7 +1,7 @@
 {
   "name": "vela-mail",
   "private": true,
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "Vela \u2014 a fast, keyboard-first Gmail desktop client for Linux",
   "license": "MIT",
   "type": "module",
