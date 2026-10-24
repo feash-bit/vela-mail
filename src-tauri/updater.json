@@ -1,4 +1,4 @@
 {
-  "endpoint": "",
-  "pubkey": ""
+  "endpoint": "https://github.com/feash-bit/vela-mail/releases/latest/download/latest.json",
+  "pubkey": "dW50cnVzdGVkIGNvbW1lbnQ6IG1pbmlzaWduIHB1YmxpYyBrZXk6IEYzMDUxRDI4RUIyQTY0Q0EKUldUS1pDcnJLQjBGODNEaEs2alJxZHBpeWlyMUNpTEZMT1FlNDNoQkppdnE4OEFNZjFOWGRrRUwK"
 }
