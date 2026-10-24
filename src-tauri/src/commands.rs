@@ -4,7 +4,7 @@ use crate::config::{self, Settings, StoredAccount};
 use crate::error::{AppError, AppResult};
 use crate::models::*;
 use crate::state::AppState;
-use crate::{files, mail, oauth, secrets, sync};
+use crate::{files, mail, oauth, reader_window, secrets, sync};
 use tauri::{AppHandle, Emitter, Manager, State};
 use tauri_plugin_dialog::DialogExt;
 use tauri_plugin_opener::OpenerExt;
@@ -19,6 +19,16 @@ fn accounts_view(state: &AppState) -> Vec<Account> {
         .iter()
         .map(|a| Account { id: a.email.clone(), email: a.email.clone(), display_name: a.display_name.clone(), status: state.auth.status(&a.email) })
         .collect()
+}
+
+/// Pop-out reader windows run the same UI code but only need to read and act on one
+/// email. Account, settings and update commands are refused from them.
+pub(crate) fn main_only(window: &tauri::WebviewWindow) -> AppResult<()> {
+    if window.label() == "main" {
+        Ok(())
+    } else {
+        Err(AppError::Invalid("That can only be done from the main Vela window.".into()))
+    }
 }
 
 async fn blocking<T: Send + 'static>(f: impl FnOnce() -> T + Send + 'static) -> AppResult<T> {
@@ -43,7 +53,8 @@ pub fn get_settings(state: S<'_>) -> Settings {
 }
 
 #[tauri::command]
-pub fn save_settings(app: AppHandle, state: S<'_>, settings: Settings) -> AppResult<Settings> {
+pub fn save_settings(app: AppHandle, window: tauri::WebviewWindow, state: S<'_>, settings: Settings) -> AppResult<Settings> {
+    main_only(&window)?;
     let s = settings.sanitized();
     let prev = state.settings();
     config::save_settings(&s)?;
@@ -57,11 +68,34 @@ pub fn save_settings(app: AppHandle, state: S<'_>, settings: Settings) -> AppRes
     if wake {
         state.sync_wake.notify_one();
     }
+    // Pop-out windows keep their own copy of the settings; tell them what changed.
+    let _ = app.emit("settings://changed", s.clone());
+    Ok(s)
+}
+
+/// Remember a sender whose images are always shown. Unlike `save_settings` this is
+/// allowed from pop-out windows and changes only this one setting, so two windows
+/// can't overwrite each other's settings.
+#[tauri::command]
+pub fn trust_sender(app: AppHandle, state: S<'_>, email: String) -> AppResult<Settings> {
+    let email = email.trim().to_lowercase();
+    if email.is_empty() || email.len() > 320 || !email.contains('@') {
+        return Err(AppError::Invalid("That isn't a valid email address.".into()));
+    }
+    let mut s = state.settings();
+    if !s.trusted_senders.contains(&email) {
+        s.trusted_senders.push(email);
+    }
+    let s = s.sanitized();
+    config::save_settings(&s)?;
+    *state.settings.write().unwrap() = s.clone();
+    let _ = app.emit("settings://changed", s.clone());
     Ok(s)
 }
 
 #[tauri::command]
-pub async fn import_client_config(app: AppHandle) -> AppResult<bool> {
+pub async fn import_client_config(app: AppHandle, window: tauri::WebviewWindow) -> AppResult<bool> {
+    main_only(&window)?;
     let picked = blocking(move || {
         app.dialog()
             .file()
@@ -77,8 +111,9 @@ pub async fn import_client_config(app: AppHandle) -> AppResult<bool> {
 }
 
 #[tauri::command]
-pub fn take_pending_mailto(state: S<'_>) -> Option<String> {
-    state.pending_mailto.lock().unwrap().take()
+pub fn take_pending_mailto(window: tauri::WebviewWindow, state: S<'_>) -> AppResult<Option<String>> {
+    main_only(&window)?;
+    Ok(state.pending_mailto.lock().unwrap().take())
 }
 
 #[tauri::command]
@@ -93,7 +128,8 @@ pub fn open_external(app: AppHandle, url: String) -> AppResult<()> {
 // ---- Accounts ---------------------------------------------------------------
 
 #[tauri::command]
-pub async fn add_account(app: AppHandle, state: S<'_>, login_hint: Option<String>) -> AppResult<Account> {
+pub async fn add_account(app: AppHandle, window: tauri::WebviewWindow, state: S<'_>, login_hint: Option<String>) -> AppResult<Account> {
+    main_only(&window)?;
     let client = config::load_client()?;
     if !blocking(secrets::keyring_available).await? {
         return Err(AppError::Keyring(
@@ -170,12 +206,15 @@ pub async fn add_account(app: AppHandle, state: S<'_>, login_hint: Option<String
 }
 
 #[tauri::command]
-pub fn cancel_sign_in(state: S<'_>) {
+pub fn cancel_sign_in(window: tauri::WebviewWindow, state: S<'_>) -> AppResult<()> {
+    main_only(&window)?;
     state.sign_in_cancel.notify_waiters();
+    Ok(())
 }
 
 #[tauri::command]
-pub async fn remove_account(app: AppHandle, state: S<'_>, account_id: String) -> AppResult<Vec<Account>> {
+pub async fn remove_account(app: AppHandle, window: tauri::WebviewWindow, state: S<'_>, account_id: String) -> AppResult<Vec<Account>> {
+    main_only(&window)?;
     // Revoke at Google (best effort), then remove every local trace.
     let token = blocking({
         let a = account_id.clone();
@@ -208,6 +247,75 @@ pub async fn remove_account(app: AppHandle, state: S<'_>, account_id: String) ->
 pub async fn get_identity(state: S<'_>, account_id: String) -> AppResult<Identity> {
     let g = state.gmail(&account_id)?;
     mail::identity(&state, &g).await
+}
+
+// ---- Pop-out reader windows -------------------------------------------------
+
+/// Open an email in its own window, or focus the window it already has.
+#[tauri::command]
+pub async fn open_reader_window(app: AppHandle, window: tauri::WebviewWindow, state: S<'_>, account_id: String, thread_id: String) -> AppResult<()> {
+    // A pop-out can't spawn more windows.
+    main_only(&window)?;
+    state.gmail(&account_id)?;
+    if !reader_window::valid_thread_id(&thread_id) {
+        return Err(AppError::Invalid("That email can't be opened.".into()));
+    }
+    let label = reader_window::label_for(&account_id, &thread_id);
+    if let Some(existing) = app.get_webview_window(&label) {
+        let _ = existing.unminimize();
+        let _ = existing.show();
+        let _ = existing.set_focus();
+        return Ok(());
+    }
+    // Registered before the window exists: its page asks for this as soon as it loads.
+    state.readers.lock().unwrap().insert(label.clone(), ReaderTarget { account_id, thread_id });
+    let (w, h) = *state.reader_size.lock().unwrap();
+    let built = tauri::WebviewWindowBuilder::new(&app, &label, tauri::WebviewUrl::App("index.html".into()))
+        .title("Vela")
+        .inner_size(w, h)
+        .min_inner_size(480.0, 400.0)
+        .decorations(!state.settings().custom_title_bar)
+        .resizable(true)
+        .visible(false)
+        .background_color(tauri::window::Color(0x16, 0x16, 0x1a, 0xff))
+        // File drops belong to the main window's composer only.
+        .disable_drag_drop_handler()
+        .build();
+    if let Err(e) = built {
+        state.readers.lock().unwrap().remove(&label);
+        return Err(AppError::internal(e));
+    }
+    // Fallback: show the window even if its UI never reports ready.
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(std::time::Duration::from_secs(4)).await;
+        if let Some(w) = app.get_webview_window(&label) {
+            if !w.is_visible().unwrap_or(false) {
+                let _ = w.show();
+            }
+        }
+    });
+    Ok(())
+}
+
+/// The email this pop-out window shows. A window can only ever learn its own.
+#[tauri::command]
+pub fn reader_target(window: tauri::WebviewWindow, state: S<'_>) -> AppResult<ReaderTarget> {
+    state
+        .readers
+        .lock()
+        .unwrap()
+        .get(window.label())
+        .cloned()
+        .ok_or_else(|| AppError::NotFound("This window has no email to show.".into()))
+}
+
+/// Called by a pop-out once it has rendered, so it never appears as a blank frame.
+#[tauri::command]
+pub fn reader_ready(window: tauri::WebviewWindow) {
+    if reader_window::is_reader(window.label()) {
+        let _ = window.show();
+        let _ = window.set_focus();
+    }
 }
 
 // ---- Reading ----------------------------------------------------------------

@@ -41,6 +41,12 @@ describe("shortcuts", () => {
     expect(m("mod+,")).toBe("settings");
   });
 
+  it("opens the conversation in a new window with shift+enter", () => {
+    const m = createMatcher(() => resolveBindings({}));
+    expect(m(eventToKey(ev("Enter", { shiftKey: true })))).toBe("openWindow");
+    expect(m("enter")).toBe("open");
+  });
+
   it("formats key caps", () => {
     expect(keyCaps("mod+shift+k")).toEqual([["Ctrl", "Shift", "K"]]);
     expect(keyCaps("g i")).toEqual([["G"], ["I"]]);

@@ -87,6 +87,11 @@ export function sendersLine(senders: string[], count: number): string {
   return shown.join(", ") + (count > 1 ? `  ${count}` : "");
 }
 
+/** Toast text after snoozing, e.g. "Snoozed until Tue, 8:00 AM". */
+export function snoozedMessage(until: number): string {
+  return `Snoozed until ${new Date(until).toLocaleString(undefined, { weekday: "short", hour: "numeric", minute: "2-digit" })}`;
+}
+
 export function parseAddressInput(raw: string): Address | null {
   const s = raw.trim().replace(/[,;]$/, "").trim();
   if (!s) return null;

@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { api, toAppErr } from "../lib/ipc";
+import { isReaderWindow } from "../lib/window";
 import type { Account, AppErr, AppInfo, Identity, Label, Settings, SyncState } from "../lib/types";
 
 export interface Toast {
@@ -30,6 +31,7 @@ interface AppStore {
   boot: () => Promise<void>;
   refreshInfo: () => Promise<void>;
   updateSettings: (patch: Partial<Settings>) => void;
+  receiveSettings: (s: Settings) => void;
   setActiveAccount: (id: string) => void;
   setAccounts: (a: Account[]) => void;
   setAccountStatus: (id: string, status: Account["status"]) => void;
@@ -46,6 +48,10 @@ interface AppStore {
 
 let toastId = 0;
 let saveTimer: ReturnType<typeof setTimeout> | null = null;
+let saveInFlight = 0;
+
+/** This window is about to write (or is writing) its own settings, which will be broadcast next. */
+const savePending = () => saveTimer !== null || saveInFlight > 0;
 
 export const useApp = create<AppStore>((set, get) => ({
   info: null,
@@ -83,11 +89,24 @@ export const useApp = create<AppStore>((set, get) => ({
     if (!cur) return;
     const next = { ...cur, ...patch };
     set({ settings: next });
+    // Pop-out windows never write settings: the main window owns them.
+    if (isReaderWindow()) return;
     // Debounced write; the backend validates and clamps values.
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(() => {
-      api.saveSettings(get().settings!).catch((e) => get().error(e, "Couldn't save settings."));
+      saveTimer = null;
+      saveInFlight++;
+      api
+        .saveSettings(get().settings!)
+        .catch((e) => get().error(e, "Couldn't save settings."))
+        .finally(() => saveInFlight--);
     }, 250);
+  },
+
+  // Settings changed in another window. Skipped while our own write is pending,
+  // because it carries newer values and will be broadcast in turn.
+  receiveSettings: (settings) => {
+    if (!savePending()) set({ settings });
   },
 
   setActiveAccount: (id) => {

@@ -4,7 +4,9 @@ import "./styles/global.css";
 import { StrictMode } from "react";
 import { createRoot } from "react-dom/client";
 import { App } from "./App";
+import { ReaderWindowApp } from "./components/readerwindow/ReaderWindowApp";
 import { initIpc } from "./lib/ipc";
+import { isReaderWindow } from "./lib/window";
 
 // Block the browser's own context menu and file drops everywhere; Vela draws its own.
 window.addEventListener("contextmenu", (e) => {
@@ -17,7 +19,7 @@ window.addEventListener("drop", (e) => e.preventDefault());
 initIpc().then(() => {
   createRoot(document.getElementById("root")!).render(
     <StrictMode>
-      <App />
+      {isReaderWindow() ? <ReaderWindowApp /> : <App />}
     </StrictMode>,
   );
 });

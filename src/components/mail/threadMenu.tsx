@@ -11,17 +11,18 @@ import {
   Forward,
   ShieldAlert,
   ShieldCheck,
+  SquareArrowOutUpRight,
   Star,
   Tag,
   Trash2,
 } from "lucide-react";
 import type { ThreadSummary, View } from "../../lib/types";
-import { startReply, usePicker } from "../../state/actions";
+import { openInWindow, startReply, usePicker } from "../../state/actions";
 import { useMail } from "../../state/mail";
 import type { Anchor, MenuEntry } from "../ui/Menu";
 
 /** Actions for one or more conversations, used by context menus and "More". */
-export function threadMenuItems(ids: string[], threads: ThreadSummary[], view: View, anchor: Anchor | null, opts: { replies?: boolean } = {}): MenuEntry[] {
+export function threadMenuItems(ids: string[], threads: ThreadSummary[], view: View, anchor: Anchor | null, opts: { replies?: boolean; openWindow?: boolean } = {}): MenuEntry[] {
   const m = useMail.getState();
   const picked = threads.filter((t) => ids.includes(t.id));
   const anyUnread = picked.some((t) => t.unread);
@@ -39,6 +40,13 @@ export function threadMenuItems(ids: string[], threads: ThreadSummary[], view: V
   };
 
   const items: MenuEntry[] = [];
+  // Drafts open in the composer, not a reader window.
+  if (opts.openWindow && single && !(view.kind === "label" && view.labelId === "DRAFT")) {
+    items.push(
+      { id: "openWindow", label: "Open in new window", icon: <SquareArrowOutUpRight size={15} />, keys: "shift+enter", onSelect: () => openInWindow(ids[0]) },
+      { kind: "sep" },
+    );
+  }
   if (opts.replies !== false && single) {
     items.push(
       { id: "reply", label: "Reply", icon: <Reply size={15} />, keys: "r", onSelect: sel(() => startReply("reply")) },

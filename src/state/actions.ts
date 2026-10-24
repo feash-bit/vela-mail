@@ -2,7 +2,7 @@
 // and context menus, so every entry point behaves the same way.
 
 import { forwardSeed, newSeed, replySeed, splitDraftHtml } from "../lib/compose";
-import { api } from "../lib/ipc";
+import { api, inTauri } from "../lib/ipc";
 import type { ShortcutAction } from "../lib/shortcuts";
 import { FOLDERS, type FolderId } from "../lib/views";
 import { useApp } from "./app";
@@ -12,16 +12,22 @@ import { create } from "zustand";
 
 export type PickerKind = "snooze" | "label";
 interface PickerStore {
-  picker: { kind: PickerKind; ids: string[]; anchor: { x: number; y: number; w?: number; h?: number } | null } | null;
-  show: (kind: PickerKind, anchor?: { x: number; y: number; w?: number; h?: number } | null, ids?: string[]) => void;
+  picker: {
+    kind: PickerKind;
+    ids: string[];
+    anchor: { x: number; y: number; w?: number; h?: number } | null;
+    /** Replaces the normal snooze action (a pop-out window closes after snoozing). */
+    onSnooze?: (until: number) => void;
+  } | null;
+  show: (kind: PickerKind, anchor?: { x: number; y: number; w?: number; h?: number } | null, ids?: string[], onSnooze?: (until: number) => void) => void;
   hide: () => void;
 }
 
 export const usePicker = create<PickerStore>((set) => ({
   picker: null,
-  show: (kind, anchor = null, ids) => {
+  show: (kind, anchor = null, ids, onSnooze) => {
     const t = ids ?? targetIds();
-    if (t.length) set({ picker: { kind, ids: t, anchor } });
+    if (t.length) set({ picker: { kind, ids: t, anchor, onSnooze } });
   },
   hide: () => set({ picker: null }),
 }));
@@ -88,6 +94,20 @@ export async function startReply(kind: "reply" | "replyAll" | "forward", message
   if (!msg) return;
   const seed = kind === "forward" ? forwardSeed(msg) : replySeed(msg, a, kind === "replyAll");
   useCompose.getState().open(a, seed, "inline");
+}
+
+/** Show a conversation in its own window. Drafts open in the composer instead. */
+export async function openInWindow(threadId?: string) {
+  const a = acct();
+  const m = useMail.getState();
+  const id = threadId ?? m.openId ?? m.selectedId;
+  if (!a || !id || (m.view.kind === "label" && m.view.labelId === "DRAFT")) return;
+  if (!inTauri()) return useApp.getState().toast("Pop-out windows need the desktop app.");
+  try {
+    await api.openReaderWindow(a, id);
+  } catch (e) {
+    useApp.getState().error(e, "Couldn't open a new window.");
+  }
 }
 
 export function compose() {
@@ -170,6 +190,8 @@ export function runAction(action: ShortcutAction) {
       return m.move(-1);
     case "open":
       return m.selectedId && m.open(m.selectedId);
+    case "openWindow":
+      return openInWindow();
     case "back":
       if (m.checked.size) return m.clearChecks();
       if (m.openId) return m.open(null);

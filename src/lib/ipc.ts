@@ -6,7 +6,7 @@
 // Production builds never include the demo module.
 
 import { invoke } from "@tauri-apps/api/core";
-import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { emit, listen, type UnlistenFn } from "@tauri-apps/api/event";
 import type {
   Account,
   AppErr,
@@ -19,6 +19,8 @@ import type {
   Label,
   LocalFile,
   MailChanged,
+  ReaderDone,
+  ReaderTarget,
   SavedDraft,
   Settings,
   SyncState,
@@ -45,9 +47,12 @@ export function toAppErr(e: unknown): AppErr {
   return { code: "internal", message: typeof e === "string" ? e : "Something went wrong." };
 }
 
+// Window commands always go to the real backend, even in a demo build.
+const NATIVE_ONLY = new Set(["window_ready", "open_reader_window", "reader_target", "reader_ready"]);
+
 async function call<T>(cmd: string, args: Record<string, unknown> = {}): Promise<T> {
   try {
-    if (demo && cmd !== "window_ready") return (await demo(cmd, args)) as T;
+    if (demo && !NATIVE_ONLY.has(cmd)) return (await demo(cmd, args)) as T;
     return await invoke<T>(cmd, args);
   } catch (e) {
     throw toAppErr(e);
@@ -62,6 +67,11 @@ export const api = {
   importClientConfig: () => call<boolean>("import_client_config"),
   takePendingMailto: () => call<string | null>("take_pending_mailto"),
   openExternal: (url: string) => call<void>("open_external", { url }),
+  trustSender: (email: string) => call<Settings>("trust_sender", { email }),
+
+  openReaderWindow: (accountId: string, threadId: string) => call<void>("open_reader_window", { accountId, threadId }),
+  readerTarget: () => call<ReaderTarget>("reader_target"),
+  readerReady: () => call<void>("reader_ready"),
 
   addAccount: (loginHint?: string) => call<Account>("add_account", { loginHint: loginHint ?? null }),
   cancelSignIn: () => call<void>("cancel_sign_in"),
@@ -113,11 +123,25 @@ export interface Events {
   "files://hover": boolean;
   "files://dropped": { files: LocalFile[]; errors: string[] };
   "update://status": UpdateStatus;
+  "settings://changed": Settings;
+  // Window-to-window events: any window can emit these, so listeners validate them (see windowEvents.ts).
+  "vela://thread-changed": { source: string; accountId: string; threadIds: string[] };
+  "vela://reader-done": ReaderDone;
 }
 
 export function on<K extends keyof Events>(event: K, fn: (payload: Events[K]) => void): Promise<UnlistenFn> {
   if (isDemo && typeof window !== "undefined" && !("__TAURI_INTERNALS__" in window)) return Promise.resolve(() => {});
   return listen<Events[K]>(event, (e) => fn(e.payload));
+}
+
+/** Tell the other windows something happened. Never throws; does nothing outside Tauri. */
+export function broadcast<K extends keyof Events>(event: K, payload: Events[K]): Promise<void> {
+  if (!inTauri()) return Promise.resolve();
+  try {
+    return emit(event, payload).catch(() => {});
+  } catch {
+    return Promise.resolve();
+  }
 }
 
 export const inTauri = () => typeof window !== "undefined" && "__TAURI_INTERNALS__" in window;

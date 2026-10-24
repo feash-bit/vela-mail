@@ -11,6 +11,7 @@ mod mail;
 mod models;
 mod notify;
 mod oauth;
+mod reader_window;
 mod sanitize;
 mod secrets;
 mod state;
@@ -51,6 +52,52 @@ fn apply_linux_env() {
     if kde && unset("GTK_USE_PORTAL") {
         std::env::set_var("GTK_USE_PORTAL", "1");
     }
+}
+
+/// Files dropped on the main window go to its composer. Pop-outs never get this.
+fn handle_drag_drop(app: &AppHandle, dd: &DragDropEvent) {
+    match dd {
+        DragDropEvent::Enter { .. } | DragDropEvent::Over { .. } => {
+            let _ = app.emit("files://hover", true);
+        }
+        DragDropEvent::Leave => {
+            let _ = app.emit("files://hover", false);
+        }
+        DragDropEvent::Drop { paths, .. } => {
+            let state = app.state::<state::AppState>();
+            let mut ok = vec![];
+            let mut errors = vec![];
+            for p in paths {
+                match files::register_path(&state, p) {
+                    Ok(f) => ok.push(f),
+                    Err(e) => errors.push(e.to_string()),
+                }
+            }
+            let _ = app.emit("files://hover", false);
+            let _ = app.emit("files://dropped", serde_json::json!({ "files": ok, "errors": errors }));
+        }
+        _ => {}
+    }
+}
+
+fn reader_windows(app: &AppHandle) -> Vec<tauri::WebviewWindow> {
+    app.webview_windows().into_iter().filter(|(label, _)| reader_window::is_reader(label)).map(|(_, w)| w).collect()
+}
+
+/// The main window is gone: close every pop-out too. `close()` (not `destroy()`) lets a
+/// pop-out save its drafts and finish pending sends first; a safety net makes sure
+/// Vela still exits if one never finishes.
+fn close_readers(app: &AppHandle) {
+    for w in reader_windows(app) {
+        let _ = w.close();
+    }
+    let app = app.clone();
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(Duration::from_secs(10)).await;
+        for w in reader_windows(&app) {
+            let _ = w.destroy();
+        }
+    });
 }
 
 #[tauri::command]
@@ -144,6 +191,8 @@ pub fn run() {
         .plugin(
             tauri_plugin_window_state::Builder::default()
                 .with_state_flags(tauri_plugin_window_state::StateFlags::all() & !tauri_plugin_window_state::StateFlags::VISIBLE & !tauri_plugin_window_state::StateFlags::DECORATIONS)
+                // Pop-out windows must not pile up in the state file; they remember only their size.
+                .with_filter(|label| !reader_window::is_reader(label))
                 .build(),
         )
         .plugin(tauri_plugin_autostart::init(tauri_plugin_autostart::MacosLauncher::LaunchAgent, Some(vec!["--minimized"])))
@@ -170,27 +219,29 @@ pub fn run() {
             Ok(())
         })
         .on_window_event(|window, event| {
-            if let WindowEvent::DragDrop(dd) = event {
-                let app = window.app_handle();
-                match dd {
-                    DragDropEvent::Enter { .. } | DragDropEvent::Over { .. } => {
-                        let _ = app.emit("files://hover", true);
-                    }
-                    DragDropEvent::Leave => {
-                        let _ = app.emit("files://hover", false);
-                    }
-                    DragDropEvent::Drop { paths, .. } => {
-                        let state = app.state::<state::AppState>();
-                        let mut ok = vec![];
-                        let mut errors = vec![];
-                        for p in paths {
-                            match files::register_path(&state, p) {
-                                Ok(f) => ok.push(f),
-                                Err(e) => errors.push(e.to_string()),
-                            }
+            let label = window.label();
+            if label == "main" {
+                match event {
+                    WindowEvent::DragDrop(dd) => handle_drag_drop(window.app_handle(), dd),
+                    WindowEvent::Destroyed => close_readers(window.app_handle()),
+                    _ => {}
+                }
+            } else if reader_window::is_reader(label) {
+                match event {
+                    WindowEvent::Resized(size) => {
+                        let maximized = window.is_maximized().unwrap_or(false);
+                        let minimized = window.is_minimized().unwrap_or(false);
+                        if !maximized && !minimized {
+                            let logical = size.to_logical::<f64>(window.scale_factor().unwrap_or(1.0));
+                            let state = window.app_handle().state::<state::AppState>();
+                            *state.reader_size.lock().unwrap() = reader_window::clamp_size(logical.width, logical.height);
                         }
-                        let _ = app.emit("files://hover", false);
-                        let _ = app.emit("files://dropped", serde_json::json!({ "files": ok, "errors": errors }));
+                    }
+                    WindowEvent::Destroyed => {
+                        let state = window.app_handle().state::<state::AppState>();
+                        state.readers.lock().unwrap().remove(label);
+                        let (w, h) = *state.reader_size.lock().unwrap();
+                        reader_window::save_size(w, h);
                     }
                     _ => {}
                 }
@@ -204,6 +255,10 @@ pub fn run() {
             commands::import_client_config,
             commands::take_pending_mailto,
             commands::open_external,
+            commands::open_reader_window,
+            commands::reader_target,
+            commands::reader_ready,
+            commands::trust_sender,
             commands::add_account,
             commands::cancel_sign_in,
             commands::remove_account,

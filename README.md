@@ -7,6 +7,7 @@ and KDE Plasma (Wayland or X11).
 - **Keyboard first**: triage with `j` `k` `e` `#` `r`, everything else with `Ctrl+K`.
 - **Safe by default**: emails can't run code, tracking images are blocked, sign-in
   tokens live only in your system keyring.
+- **Pop-out windows**: open any email in its own window (see below).
 - **Light on resources**: a ~16 MB binary; uses the system WebKitGTK engine.
 
 ---
@@ -77,6 +78,7 @@ src/                      React + TypeScript interface
     mail/                 virtualised conversation list
     reader/               conversation view, sandboxed email frame, attachments
     compose/              composer (TipTap editor), recipients, dock
+    readerwindow/         pop-out window that shows one email
     settings/             settings dialog
     onboarding/           first-run Google setup and sign-in
     ui/                   design-system primitives (buttons, menus, dialogs, toasts)
@@ -92,6 +94,7 @@ src-tauri/                Rust backend (Tauri 2)
   src/sanitize.rs         email HTML sanitiser
   src/sync.rs             incremental sync via users.history.list + notifications
   src/cache.rs            SQLite cache of thread summaries (no bodies)
+  src/reader_window.rs    pop-out email windows (labels, remembered size)
   src/files.rs            attachment handling (pick, open, save)
   src/commands.rs         the commands the interface can call
   src/tests.rs            end-to-end tests against a fake Gmail server
@@ -111,6 +114,34 @@ docs/                     Google setup guide
   interface can only call a fixed list of commands (see `capabilities/default.json`).
 
 ---
+
+## Pop-out windows
+
+Open any conversation in its own window that you can move, resize and minimise
+independently of the main window:
+
+- click **Open in new window** in the reader toolbar,
+- double-click a conversation in the list,
+- right-click a conversation and choose **Open in new window**, or
+- press `Shift+Enter`.
+
+Opening the same email again brings its existing window forward.
+
+**What stays open and what closes.** Reading, starring, marking important,
+labelling, replying and moving the email back to the Inbox keep the window open.
+Archive, Move to Trash, Report spam and Snooze take the email out of your inbox, so
+they close the window; the main window then offers **Undo**. `Esc` closes a pop-out.
+
+**Closing.** Closing the main window closes every pop-out. A pop-out saves any
+draft and sends any message still waiting out its undo delay before it goes away.
+
+**Size and position.** Vela remembers the size of your last pop-out for the next
+one. Position is chosen by KDE Plasma (Wayland doesn't let apps place their own
+windows).
+
+**Security.** A pop-out can read and act on its one email only. Account, settings and
+update commands are refused from it, it can't open further windows, and it has no
+file, shell or network access beyond Vela's own commands.
 
 ## Security model
 
@@ -144,6 +175,7 @@ Press `?` in the app for the full list, or change any of them in
 | `Ctrl+K` | Command menu | `s` | Star |
 | `j` / `k` | Next / previous | `u` | Read / unread |
 | `Enter` | Open | `h` | Snooze |
+| `Shift+Enter` | Open in new window | | |
 | `Esc` | Back / close | `l` | Labels |
 | `r` / `a` / `f` | Reply / all / forward | `!` | Report spam |
 | `x` | Select | `z` | Undo |
@@ -208,7 +240,7 @@ tokens or message content.
 
 | Path | Contents |
 |---|---|
-| `~/.config/vela-mail/` | settings, account list, OAuth client file |
+| `~/.config/vela-mail/` | settings, account list, OAuth client file, pop-out window size |
 | `~/.local/share/vela-mail/` | message-list cache |
 | `~/.cache/vela-mail/` | temporary attachment copies (cleared at start) |
 | System keyring, service `vela-mail` | refresh tokens |

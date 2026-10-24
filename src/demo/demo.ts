@@ -426,6 +426,11 @@ export async function handle(cmd: string, args: Record<string, unknown>): Promis
     case "save_settings":
       settings = { ...(a.settings as Settings) };
       return settings;
+    case "trust_sender": {
+      const email = String(a.email).trim().toLowerCase();
+      if (email && !settings.trustedSenders.includes(email)) settings = { ...settings, trustedSenders: [...settings.trustedSenders, email] };
+      return settings;
+    }
     case "take_pending_mailto":
       return null;
     case "get_identity":

@@ -32,8 +32,6 @@ export function MessageCard({
   threadId: string;
 }) {
   const me = useApp((a) => a.activeAccount);
-  const update = useApp((a) => a.updateSettings);
-  const trusted = useApp((a) => a.settings?.trustedSenders ?? []);
   const { menu, openAt, close } = useMenu();
   const [details, setDetails] = useState<ReturnType<typeof anchorFrom> | null>(null);
   const fromName = nameOf(m.from);
@@ -53,9 +51,16 @@ export function MessageCard({
   }
 
   const loadImages = () => useMail.getState().loadDetail(threadId, { allowRemote: true });
-  const trustSender = () => {
-    const email = m.from.email.toLowerCase();
-    if (!trusted.includes(email)) update({ trustedSenders: [...trusted, email] });
+  // The backend changes only this one setting, so this works from any window and
+  // never overwrites settings changed elsewhere.
+  const trustSender = async () => {
+    try {
+      const saved = await api.trustSender(m.from.email);
+      useApp.setState((a) => (a.settings ? { settings: { ...a.settings, trustedSenders: saved.trustedSenders } } : {}));
+    } catch (e) {
+      useApp.getState().error(e, "Couldn't save that setting.");
+      return;
+    }
     loadImages();
   };
 

@@ -34,7 +34,7 @@ function centerAnchor(): Anchor {
   return { x: window.innerWidth / 2 - 140, y: window.innerHeight * 0.22 };
 }
 
-function SnoozePicker({ ids, anchor, onClose }: { ids: string[]; anchor: Anchor; onClose: () => void }) {
+function SnoozePicker({ ids, anchor, onClose, onSnooze }: { ids: string[]; anchor: Anchor; onClose: () => void; onSnooze?: (until: number) => void }) {
   const options = useMemo(() => snoozeOptions(), []);
   const [active, setActive] = useState(0);
   const [custom, setCustom] = useState("");
@@ -42,7 +42,8 @@ function SnoozePicker({ ids, anchor, onClose }: { ids: string[]; anchor: Anchor;
   useEffect(() => ref.current?.focus(), []);
   const choose = (when: Date) => {
     onClose();
-    useMail.getState().snooze(ids, when.getTime());
+    if (onSnooze) onSnooze(when.getTime());
+    else useMail.getState().snooze(ids, when.getTime());
   };
   return (
     <Popover anchor={anchor} onClose={onClose} width={290} label="Snooze until" className={o.snooze}>
@@ -146,5 +147,5 @@ export function Pickers() {
   const hide = usePicker((p) => p.hide);
   if (!picker) return null;
   const anchor = picker.anchor ?? centerAnchor();
-  return picker.kind === "snooze" ? <SnoozePicker ids={picker.ids} anchor={anchor} onClose={hide} /> : <LabelPicker ids={picker.ids} anchor={anchor} onClose={hide} />;
+  return picker.kind === "snooze" ? <SnoozePicker ids={picker.ids} anchor={anchor} onClose={hide} onSnooze={picker.onSnooze} /> : <LabelPicker ids={picker.ids} anchor={anchor} onClose={hide} />;
 }
